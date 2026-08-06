@@ -1,6 +1,10 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import Copy from "../components/Copy";
+import Promo from "../components/Promo";
+import Grafica from "../components/Grafica";
+import Report from "../components/Report";
 
 const EXTERNAL = {
   foto: "https://foto-studio-miglioriamo.netlify.app",
@@ -14,6 +18,7 @@ export default function Home() {
   const [loading, setLoading] = useState(true);
   const [detail, setDetail] = useState(null);
   const [detailLoading, setDetailLoading] = useState(false);
+  const [activeModule, setActiveModule] = useState(null);
 
   useEffect(() => {
     fetch("/api/clients")
@@ -29,6 +34,7 @@ export default function Home() {
 
   useEffect(() => {
     if (!current) return;
+    setActiveModule(null);
     setDetailLoading(true);
     setDetail(null);
     fetch(`/api/client?name=${encodeURIComponent(current)}`)
@@ -96,21 +102,22 @@ export default function Home() {
 
             <div className="sech">Strumenti</div>
             <div className="tools">
-              <Tool icon="✍️" t="Copy" d="Didascalie dai contenuti nuovi" soon />
-              <Tool icon="🏷️" t="Promo" d="Idee promo dell'agente (cartella /PROMO)" soon />
-              <Tool icon="🎨" t="Grafica" d="Copertine e visual col brand del cliente" soon />
-              <Tool icon="📊" t="Report" d="Andamento organico dai numeri Business Suite" soon />
+              <Tool icon="✍️" t="Copy" d="Didascalie dalle foto nuove (Claude vede le foto)" mod="copy" active={activeModule} onSelect={setActiveModule} />
+              <Tool icon="🏷️" t="Promo" d="Idee promo dell'agente (cartella /PROMO)" mod="promo" active={activeModule} onSelect={setActiveModule} />
+              <Tool icon="🎨" t="Grafica" d="Copertine e visual col brand del cliente" mod="grafica" active={activeModule} onSelect={setActiveModule} />
+              <Tool icon="📊" t="Report" d="Andamento dai numeri di Business Suite" mod="report" active={activeModule} onSelect={setActiveModule} />
               <Tool icon="📸" t="Foto Studio ↗" d="Migliora le foto grezze per i social" href={EXTERNAL.foto} />
               <Tool icon="🎬" t="Idee Shooting ↗" d="Idee di scatto + brief PDF" href={EXTERNAL.shooting} />
             </div>
 
-            <p className="note">
-              Fase 1 · l&apos;hub legge i clienti{" "}
-              {source === "dropbox"
-                ? "dal vivo da Dropbox."
-                : "in modalità demo (nessun token Dropbox impostato — vedi README)."}{" "}
-              I moduli AI si agganciano nelle prossime fasi.
-            </p>
+            {activeModule === "copy" && <Copy clientName={current} />}
+            {activeModule === "promo" && <Promo clientName={current} />}
+            {activeModule === "grafica" && <Grafica clientName={current} />}
+            {activeModule === "report" && <Report clientName={current} />}
+
+            {!activeModule && (
+              <p className="note">Scegli uno strumento qui sopra. Il contesto del cliente è già caricato da Dropbox.</p>
+            )}
           </>
         ) : (
           <p className="note">Nessun cliente trovato.</p>
@@ -158,20 +165,21 @@ function Missing({ detail, loading }) {
   );
 }
 
-function Tool({ icon, t, d, href, soon }) {
+function Tool({ icon, t, d, href, mod, active, onSelect }) {
+  const isActive = mod && active === mod;
   const onClick = () => {
     if (href) window.open(href, "_blank", "noopener");
-    else alert(`${t} — modulo in arrivo (prossima fase)`);
+    else if (mod && onSelect) onSelect(isActive ? null : mod);
   };
   return (
-    <button className="tool" onClick={onClick}>
+    <button className={"tool" + (isActive ? " toolActive" : "")} onClick={onClick}>
       <div className="tic">{icon}</div>
       <div className="tt">{t}</div>
       <div className="td">{d}</div>
-      {soon ? (
-        <span className="badge">Prossima fase</span>
-      ) : (
+      {href ? (
         <span className="badge muted">App collegata</span>
+      ) : (
+        <span className="badge">{isActive ? "Aperto ✓" : "Apri"}</span>
       )}
     </button>
   );
