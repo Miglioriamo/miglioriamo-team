@@ -40,8 +40,13 @@ button{font-family:inherit;cursor:pointer}
 
 /* main */
 .main{padding:26px 34px 60px;max-width:1080px}
-.chead{background:var(--surface);border:1px solid var(--border);border-radius:14px;padding:20px 22px;
-  display:flex;align-items:center;gap:16px;margin-bottom:8px}
+.chead{background:var(--surface);border:1px solid var(--border);border-radius:14px;padding:20px 22px;margin-bottom:8px}
+.cheadTop{display:flex;align-items:center;gap:16px}
+.missing{display:flex;flex-wrap:wrap;gap:7px;margin-top:15px;align-items:center}
+.mk-ok{font-size:11.5px;color:var(--good);background:rgba(102,193,133,.14);padding:3px 10px;border-radius:100px;font-weight:600}
+.mk-no{font-size:11.5px;color:#E86B4F;background:rgba(232,107,79,.14);border:1px solid #E86B4F;padding:3px 10px;border-radius:100px;font-weight:700}
+.missing .mnote{font-size:11.5px;color:var(--faint);width:100%;margin-top:3px;line-height:1.5}
+.missing .mnote b{color:#E86B4F}
 .avatar{width:52px;height:52px;border-radius:13px;background:var(--accent);display:grid;place-items:center;
   color:#1A1200;font-weight:750;font-size:22px;flex:none;text-transform:uppercase}
 .ctitle{font-size:22px;font-weight:750;letter-spacing:-.02em}

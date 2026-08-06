@@ -12,6 +12,8 @@ export default function Home() {
   const [source, setSource] = useState("");
   const [current, setCurrent] = useState(null);
   const [loading, setLoading] = useState(true);
+  const [detail, setDetail] = useState(null);
+  const [detailLoading, setDetailLoading] = useState(false);
 
   useEffect(() => {
     fetch("/api/clients")
@@ -24,6 +26,17 @@ export default function Home() {
       .catch(() => {})
       .finally(() => setLoading(false));
   }, []);
+
+  useEffect(() => {
+    if (!current) return;
+    setDetailLoading(true);
+    setDetail(null);
+    fetch(`/api/client?name=${encodeURIComponent(current)}`)
+      .then((r) => r.json())
+      .then((d) => setDetail(d))
+      .catch(() => setDetail(null))
+      .finally(() => setDetailLoading(false));
+  }, [current]);
 
   return (
     <div className="app">
@@ -71,11 +84,14 @@ export default function Home() {
         ) : current ? (
           <>
             <div className="chead">
-              <div className="avatar">{current[0]}</div>
-              <div>
-                <div className="ctitle">{current}</div>
-                <div className="cmeta">Cliente</div>
+              <div className="cheadTop">
+                <div className="avatar">{current[0]}</div>
+                <div>
+                  <div className="ctitle">{current}</div>
+                  <div className="cmeta">Cliente · contesto letto da Dropbox</div>
+                </div>
               </div>
+              <Missing detail={detail} loading={detailLoading} />
             </div>
 
             <div className="sech">Strumenti</div>
@@ -100,6 +116,44 @@ export default function Home() {
           <p className="note">Nessun cliente trovato.</p>
         )}
       </main>
+    </div>
+  );
+}
+
+function Missing({ detail, loading }) {
+  if (loading)
+    return (
+      <div className="missing">
+        <span className="mnote">Controllo i file del cliente su Dropbox…</span>
+      </div>
+    );
+  if (!detail || !detail.have) return null;
+  const CHECKS = [
+    ["dossier", "Contesto"],
+    ["promo", "Contesto promo"],
+    ["cta", "CTA"],
+    ["logo", "Logo cliente"],
+  ];
+  const missing = CHECKS.filter(([k]) => !detail.have[k]).map(([, l]) => l);
+  return (
+    <div className="missing">
+      {CHECKS.map(([k, l]) =>
+        detail.have[k] ? (
+          <span key={k} className="mk-ok">✓ {l}</span>
+        ) : (
+          <span key={k} className="mk-no">⚠ {l}</span>
+        )
+      )}
+      <div className="mnote">
+        {missing.length ? (
+          <>
+            Da aggiungere nella cartella Dropbox: <b>{missing.join(", ")}</b> — più ogni cosa
+            utile (foto, orari, listino, indirizzo).
+          </>
+        ) : (
+          <>Cartella cliente completa ✓</>
+        )}
+      </div>
     </div>
   );
 }
