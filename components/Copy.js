@@ -33,24 +33,24 @@ export default function Copy({ clientName }) {
   return (
     <div className="mod">
       <div className="modHead">
-        <div><b>Copy — {clientName}</b><span className="modSub">Claude vede le foto e scrive · voce dal dossier</span></div>
+        <div><b>Copy — {clientName}</b><span className="modSub">Claude guarda foto e video e scrive · voce dal dossier</span></div>
       </div>
 
       <div className="copyForm">
-        <label>📎 Percorso della cartella con le foto (dentro Dropbox)</label>
+        <label>📎 Percorso della cartella con foto e video (dentro Dropbox)</label>
         <input
           value={path}
           onChange={(e) => setPath(e.target.value)}
           placeholder="/NORCIA IN TAVOLA/072026 - NUOVI VIDEO ..."
         />
         <p className="hint">
-          Incolla il percorso della cartella Dropbox con i contenuti nuovi. L&apos;app apre la cartella,
-          <b> vede</b> ogni foto e scrive una didascalia corta (2-3 frasi + CTA) con la voce del cliente.
-          Per ora legge le <b>foto</b> (jpg/png); i video arrivano più avanti.
+          Incolla il percorso della cartella Dropbox con i contenuti nuovi (foto e video). L&apos;app apre la cartella,
+          <b> guarda i contenuti</b> e scrive una didascalia corta (2-3 frasi + CTA) con la voce del cliente.
+          Al momento elabora le <b>foto</b> (jpg/png); il supporto <b>video</b> è in arrivo.
         </p>
         <div style={{ marginTop: 14 }}>
           <button className="btn primary" onClick={generate} disabled={loading}>
-            {loading ? "Genero… (Claude sta guardando le foto)" : "Genera copy →"}
+            {loading ? "Genero… (Claude sta guardando i contenuti)" : "Genera copy →"}
           </button>
         </div>
       </div>

@@ -102,7 +102,7 @@ export default function Home() {
 
             <div className="sech">Strumenti</div>
             <div className="tools">
-              <Tool icon="✍️" t="Copy" d="Didascalie dalle foto nuove (Claude vede le foto)" mod="copy" active={activeModule} onSelect={setActiveModule} />
+              <Tool icon="✍️" t="Copy" d="Didascalie dai contenuti nuovi (foto e video)" mod="copy" active={activeModule} onSelect={setActiveModule} />
               <Tool icon="🏷️" t="Promo" d="Idee promo dell'agente (cartella /PROMO)" mod="promo" active={activeModule} onSelect={setActiveModule} />
               <Tool icon="🎨" t="Grafica" d="Copertine e visual col brand del cliente" mod="grafica" active={activeModule} onSelect={setActiveModule} />
               <Tool icon="📊" t="Report" d="Andamento dai numeri di Business Suite" mod="report" active={activeModule} onSelect={setActiveModule} />

@@ -39,6 +39,7 @@ export default function Grafica({ clientName }) {
   const [eyebrow, setEyebrow] = useState(FORMATS.aperti.eyebrow);
   const [title, setTitle] = useState(FORMATS.aperti.title);
   const [subtitle, setSubtitle] = useState(FORMATS.aperti.subtitle);
+  const [logo, setLogo] = useState(clientName);
 
   const chooseFmt = (k) => {
     setFmt(k);
@@ -70,6 +71,7 @@ export default function Grafica({ clientName }) {
             <div className="fld"><label>Riga alta</label><input value={eyebrow} onChange={(e) => setEyebrow(e.target.value)} /></div>
             <div className="fld"><label>Titolo</label><input value={title} onChange={(e) => setTitle(e.target.value)} /></div>
             <div className="fld"><label>Sottotitolo</label><input value={subtitle} onChange={(e) => setSubtitle(e.target.value)} /></div>
+            <div className="fld"><label>Riga logo / testo in alto</label><input value={logo} onChange={(e) => setLogo(e.target.value)} /></div>
 
             <div className="lab">Posizione testo</div>
             <div className="grid2">
@@ -112,7 +114,7 @@ export default function Grafica({ clientName }) {
               <div className="bg" style={{ background: BGS[bgi] }} />
               <div className="dark" style={{ background: `rgba(0,0,0,${dark})` }} />
               <div className="ov" />
-              <div className="logo">{clientName}</div>
+              <div className="logo">{logo}</div>
               <div className="txt">
                 <div className="eyebrow">{eyebrow}</div>
                 {titleHtml ? (
