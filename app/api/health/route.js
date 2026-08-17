@@ -1,4 +1,4 @@
-import { listFolder, authMode } from "../../../lib/dropbox";
+import { listFolder, authMode, diagnose } from "../../../lib/dropbox";
 
 export const dynamic = "force-dynamic";
 
@@ -19,6 +19,9 @@ export async function GET() {
 
   const checks = {};
   let firstClient = null;
+
+  // 0) autenticazione: il token viene rilasciato? e viene accettato?
+  checks.autenticazione = await diagnose();
 
   // 1) elenco clienti (cartella radice dei contesti)
   try {
