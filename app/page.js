@@ -135,6 +135,18 @@ function Missing({ detail, loading }) {
       </div>
     );
   if (!detail || !detail.have) return null;
+  // Se Dropbox non ha risposto, i file ci sono ma noi non li vediamo: va detto,
+  // altrimenti sembra che manchi tutto nella cartella del cliente.
+  if (detail.source === "mock" && detail.error)
+    return (
+      <div className="missing">
+        <span className="mk-no">⚠ Dropbox non raggiungibile</span>
+        <div className="mnote">
+          Non riesco a leggere la cartella del cliente, quindi non posso dire cosa manca.
+          Dettaglio tecnico: <b>{detail.error}</b>
+        </div>
+      </div>
+    );
   const CHECKS = [
     ["dossier", "Contesto"],
     ["promo", "Contesto promo"],

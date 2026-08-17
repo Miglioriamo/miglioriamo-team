@@ -4,19 +4,40 @@ import { useEffect, useState } from "react";
 
 export default function Promo({ clientName }) {
   const [files, setFiles] = useState(null);
+  const [error, setError] = useState(null);
   const [idx, setIdx] = useState(0);
 
   useEffect(() => {
     setFiles(null);
+    setError(null);
     setIdx(0);
     fetch(`/api/promo?name=${encodeURIComponent(clientName)}`)
       .then((r) => r.json())
-      .then((d) => setFiles(d.files || []))
-      .catch(() => setFiles([]));
+      .then((d) => {
+        // Errore di lettura ≠ cartella vuota: vanno distinti, altrimenti un
+        // problema Dropbox sembra "l'agente non ha ancora generato niente".
+        if (d.error) setError(d.error);
+        setFiles(d.files || []);
+      })
+      .catch((e) => {
+        setError(String(e && e.message ? e.message : e));
+        setFiles([]);
+      });
   }, [clientName]);
 
   if (files === null)
     return <div className="mod"><p className="note">Carico le promo da Dropbox…</p></div>;
+
+  if (error)
+    return (
+      <div className="mod">
+        <div className="modHead"><b>Promo — {clientName}</b><span className="modSub">cartella Dropbox /PROMO</span></div>
+        <div className="empty">
+          ⚠ Non riesco a leggere Dropbox, quindi non so se ci sono promo per questo cliente.<br />
+          Dettaglio tecnico: <b>{error}</b>
+        </div>
+      </div>
+    );
 
   if (files.length === 0)
     return (
