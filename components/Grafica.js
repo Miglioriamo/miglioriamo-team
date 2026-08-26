@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from "react";
 import { rimuoviSfondo, haGiaTrasparenza, TOLLERANZE } from "../lib/sfondo";
+import { estraiColori, scurisci } from "../lib/palette";
 
 const FORMATS = {
   aperti: { name: "Siamo aperti", eyebrow: "MARTEDÌ 2 GIUGNO 2026", title: "SIAMO APERTI", subtitle: "Pranzo e cena" },
@@ -28,6 +29,11 @@ const FONTS = [
 ];
 const DARK = [["0", "No"], ["0.22", "Leggero"], ["0.42", "Medio"], ["0.6", "Forte"]];
 const PULIZIE = [["leggera", "Leggera"], ["media", "Media"], ["forte", "Forte"], ["massima", "Massima"]];
+const TIPI_BG = [["tinta", "Tinta unita"], ["sfumatura", "Sfumatura"], ["fantasia", "Fantasia"]];
+const DIREZIONI = [["verticale", "Dall'alto"], ["diagonale", "Diagonale"], ["radiale", "Dal centro"]];
+// Fondi che reggono bene il testo: scuri profondi, neutri caldi e qualche colore pieno.
+const SFONDI = ["#111111", "#1C1F2A", "#241A10", "#12241C", "#2A1510", "#3A2E4A",
+  "#F7F3EA", "#FFFFFF", "#F4AD15", "#C0392B", "#2D6CDF", "#2E8B57"];
 
 export default function Grafica({ clientName }) {
   const [fmt, setFmt] = useState("aperti");
@@ -37,7 +43,12 @@ export default function Grafica({ clientName }) {
   const [font, setFont] = useState("impatto");
   const [dark, setDark] = useState("0");
   const [bgi, setBgi] = useState(0);
-  const [src, setSrc] = useState("ai");
+  const [bgTipo, setBgTipo] = useState("fantasia");
+  const [col1, setCol1] = useState("#1C1F2A");
+  const [col2, setCol2] = useState(scurisci("#1C1F2A", 0.55));
+  const [col2Auto, setCol2Auto] = useState(true); // finché non lo scegli tu, lo abbino io
+  const [dir, setDir] = useState("verticale");
+  const [palette, setPalette] = useState([]);
   const [eyebrow, setEyebrow] = useState(FORMATS.aperti.eyebrow);
   const [title, setTitle] = useState(FORMATS.aperti.title);
   const [subtitle, setSubtitle] = useState(FORMATS.aperti.subtitle);
@@ -54,8 +65,27 @@ export default function Grafica({ clientName }) {
 
   // Cambiando cliente il logo di prima non c'entra più niente.
   useEffect(() => {
-    setLogoImg(null); setLogoInfo(null); setLogoStato("vuoto"); setLogoMsg("");
+    setLogoImg(null); setLogoInfo(null); setLogoStato("vuoto"); setLogoMsg(""); setPalette([]);
   }, [clientName]);
+
+  // Scegliendo il colore principale, il secondo si abbina da solo (più scuro),
+  // finché non lo si sceglie a mano.
+  const scegliCol1 = (c) => {
+    setCol1(c);
+    if (col2Auto) setCol2(scurisci(c, 0.55));
+  };
+  const scegliCol2 = (c) => { setCol2Auto(false); setCol2(c); };
+
+  const sfondoCss =
+    bgTipo === "tinta"
+      ? col1
+      : bgTipo === "sfumatura"
+      ? dir === "radiale"
+        ? `radial-gradient(120% 90% at 50% 25%, ${col1} 0%, ${col2} 100%)`
+        : dir === "diagonale"
+        ? `linear-gradient(135deg, ${col1} 0%, ${col2} 100%)`
+        : `linear-gradient(180deg, ${col1} 0%, ${col2} 100%)`
+      : BGS[bgi];
 
   async function caricaLogo(livello = pulizia, rimuovi = togliFondo, dentro = ancheDentro) {
     setLogoStato("carico"); setLogoMsg("");
@@ -69,8 +99,9 @@ export default function Grafica({ clientName }) {
       }
       const formato = res.headers.get("X-Logo-Formato") || "";
       const img = await caricaBitmap(await res.blob());
-      const { dataUrl, nota } = elabora(img, rimuovi, TOLLERANZE[livello], dentro);
+      const { dataUrl, nota, colori } = elabora(img, rimuovi, TOLLERANZE[livello], dentro);
       setLogoImg(dataUrl);
+      setPalette(colori);
       setLogoInfo({ formato });
       setLogoMsg(nota);
       setLogoStato("ok");
@@ -174,11 +205,38 @@ export default function Grafica({ clientName }) {
             </div>
 
             <div className="lab">Sfondo</div>
-            <div className="toggle2">
-              <button className={src === "ai" ? "on" : ""} onClick={() => setSrc("ai")}>🤖 AI</button>
-              <button className={src === "foto" ? "on" : ""} onClick={() => setSrc("foto")}>🖼️ Foto cliente</button>
+            <div className="grid2">
+              {TIPI_BG.map(([k, l]) => (
+                <button key={k} className={"fbtn" + (k === bgTipo ? " on" : "")} onClick={() => setBgTipo(k)}>{l}</button>
+              ))}
             </div>
-            <button className="rowbtn" onClick={() => setBgi((bgi + 1) % BGS.length)}>🔄 Cambia sfondo</button>
+
+            {bgTipo === "fantasia" ? (
+              <button className="rowbtn" onClick={() => setBgi((bgi + 1) % BGS.length)}>🔄 Cambia fantasia</button>
+            ) : (
+              <>
+                {palette.length ? (
+                  <>
+                    <div className="lab">Colori del logo <span className="labnote">(presi dal marchio del cliente)</span></div>
+                    <Swatches list={palette} cur={col1} onPick={scegliCol1} senzaPicker />
+                  </>
+                ) : null}
+                <div className="lab">{bgTipo === "sfumatura" ? "Colore principale" : "Colore"}</div>
+                <Swatches list={SFONDI} cur={col1} onPick={scegliCol1} />
+                {bgTipo === "sfumatura" ? (
+                  <>
+                    <div className="lab">Secondo colore</div>
+                    <Swatches list={SFONDI} cur={col2} onPick={scegliCol2} />
+                    <div className="lab">Direzione</div>
+                    <div className="grid2">
+                      {DIREZIONI.map(([k, l]) => (
+                        <button key={k} className={"fbtn" + (k === dir ? " on" : "")} onClick={() => setDir(k)}>{l}</button>
+                      ))}
+                    </div>
+                  </>
+                ) : null}
+              </>
+            )}
 
             <div className="lab">Velo scuro <span className="labnote">(se la foto è chiara)</span></div>
             <div className="grid2">
@@ -192,7 +250,7 @@ export default function Grafica({ clientName }) {
 
           <div className="stageWrap">
             <div className={`stage fmt-${fmt} pos-${pos}`} style={{ "--ink": ink, "--line": line }}>
-              <div className="bg" style={{ background: BGS[bgi] }} />
+              <div className="bg" style={{ background: sfondoCss }} />
               <div className="dark" style={{ background: `rgba(0,0,0,${dark})` }} />
               <div className="ov" />
               {logoImg ? (
@@ -212,7 +270,9 @@ export default function Grafica({ clientName }) {
                 <div className="subtitle">{subtitle}</div>
               </div>
             </div>
-            <div className="srcbadge">Sfondo: <b>{src === "ai" ? "generato con AI" : "foto del cliente"}</b> · 4:5</div>
+            <div className="srcbadge">
+              Sfondo: <b>{bgTipo === "tinta" ? "tinta unita" : bgTipo === "sfumatura" ? "sfumatura" : "fantasia"}</b> · 4:5
+            </div>
           </div>
         </div>
       </div>
@@ -243,8 +303,8 @@ function elabora(img, rimuovi, tolleranza, ancheDentro = false) {
   ctx.drawImage(img, 0, 0, tela.width, tela.height);
 
   let nota = "";
+  const dati = ctx.getImageData(0, 0, tela.width, tela.height);
   if (rimuovi) {
-    const dati = ctx.getImageData(0, 0, tela.width, tela.height);
     if (haGiaTrasparenza(dati)) {
       nota = "aveva già lo sfondo trasparente";
     } else {
@@ -256,16 +316,18 @@ function elabora(img, rimuovi, tolleranza, ancheDentro = false) {
   } else {
     nota = "sfondo lasciato com'era";
   }
-  return { dataUrl: tela.toDataURL("image/png"), nota };
+  // I colori del marchio servono a proporre sfondi coerenti col cliente.
+  const colori = estraiColori(dati, 5);
+  return { dataUrl: tela.toDataURL("image/png"), nota, colori };
 }
 
-function Swatches({ list, cur, onPick }) {
+function Swatches({ list, cur, onPick, senzaPicker }) {
   return (
     <div className="swatches">
       {list.map((c) => (
         <button key={c} className={"sw" + (c.toLowerCase() === cur.toLowerCase() ? " on" : "")} style={{ background: c }} onClick={() => onPick(c)} />
       ))}
-      <input type="color" value={cur} onChange={(e) => onPick(e.target.value)} />
+      {senzaPicker ? null : <input type="color" value={cur} onChange={(e) => onPick(e.target.value)} />}
     </div>
   );
 }
