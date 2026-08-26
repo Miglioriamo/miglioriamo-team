@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import Copy from "../components/Copy";
 import Promo from "../components/Promo";
 import Grafica from "../components/Grafica";
@@ -19,6 +19,16 @@ export default function Home() {
   const [detail, setDetail] = useState(null);
   const [detailLoading, setDetailLoading] = useState(false);
   const [activeModule, setActiveModule] = useState(null);
+  const [q, setQ] = useState(""); // filtro sull'elenco clienti
+  const [menu, setMenu] = useState(false); // su cellulare l'elenco parte chiuso
+  const modRef = useRef(null);
+
+  // Su cellulare il modulo nasce sotto sei schede: senza questo bisognerebbe
+  // scorrere parecchio per capire che qualcosa è successo.
+  useEffect(() => {
+    if (!activeModule || !modRef.current) return;
+    modRef.current.scrollIntoView({ behavior: "smooth", block: "start" });
+  }, [activeModule]);
 
   useEffect(() => {
     fetch("/api/clients")
@@ -44,15 +54,28 @@ export default function Home() {
       .finally(() => setDetailLoading(false));
   }, [current]);
 
+  const visibili = q.trim()
+    ? clients.filter((c) => c.name.toLowerCase().includes(q.trim().toLowerCase()))
+    : clients;
+
+  const scegli = (nome) => {
+    setCurrent(nome);
+    setMenu(false); // su cellulare l'elenco si richiude e si vede subito il cliente
+  };
+
   return (
     <div className="app">
-      <aside className="side">
+      <aside className={"side" + (menu ? " open" : "")}>
         <div className="brand">
           <div className="mark">M</div>
           <div>
             <div className="bname">MiglioriAmo Studio</div>
             <div className="bsub">Ambiente di lavoro</div>
           </div>
+          {/* solo su cellulare: apre/chiude l'elenco clienti */}
+          <button className="menuBtn" onClick={() => setMenu(!menu)} aria-expanded={menu}>
+            {menu ? "Chiudi" : current || "Scegli cliente"} <span aria-hidden="true">{menu ? "▲" : "▼"}</span>
+          </button>
         </div>
 
         <div className="clientsWrap">
@@ -60,18 +83,26 @@ export default function Home() {
             I tuoi clienti · {clients.length}
             {source === "mock" ? " (demo)" : ""}
           </div>
+          <input
+            className="csearch"
+            value={q}
+            onChange={(e) => setQ(e.target.value)}
+            placeholder="Cerca cliente…"
+            aria-label="Cerca cliente"
+          />
           <ul className="clients">
-            {clients.map((c) => (
+            {visibili.map((c) => (
               <li key={c.name}>
                 <button
                   className={"cbtn" + (c.name === current ? " active" : "")}
-                  onClick={() => setCurrent(c.name)}
+                  onClick={() => scegli(c.name)}
                 >
                   <span className="dot" />
                   <span className="cname">{c.name}</span>
                 </button>
               </li>
             ))}
+            {!visibili.length && <li className="nores">Nessun cliente con questo nome.</li>}
           </ul>
         </div>
 
@@ -110,10 +141,12 @@ export default function Home() {
               <Tool icon="🎬" t="Idee Shooting ↗" d="Idee di scatto + brief PDF" href={EXTERNAL.shooting} />
             </div>
 
-            {activeModule === "copy" && <Copy clientName={current} />}
-            {activeModule === "promo" && <Promo clientName={current} />}
-            {activeModule === "grafica" && <Grafica clientName={current} />}
-            {activeModule === "report" && <Report clientName={current} />}
+            <div ref={modRef} style={{ scrollMarginTop: 76 }}>
+              {activeModule === "copy" && <Copy clientName={current} />}
+              {activeModule === "promo" && <Promo clientName={current} />}
+              {activeModule === "grafica" && <Grafica clientName={current} />}
+              {activeModule === "report" && <Report clientName={current} />}
+            </div>
 
             {!activeModule && (
               <p className="note">Scegli uno strumento qui sopra. Il contesto del cliente è già caricato da Dropbox.</p>

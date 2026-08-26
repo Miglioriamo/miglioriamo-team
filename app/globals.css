@@ -185,3 +185,86 @@ button{font-family:inherit;cursor:pointer}
 @media(max-width:820px){.gfx .layout{grid-template-columns:1fr}}
 
 .tool.toolActive{border-color:var(--accent);box-shadow:0 0 0 1px var(--accent)}
+
+/* ===== ricerca clienti ===== */
+.csearch{width:100%;background:var(--surface-2);border:1px solid var(--border);border-radius:9px;
+  padding:8px 11px;font-size:13px;color:var(--text);margin-bottom:8px;font-family:inherit}
+.csearch:focus{outline:none;border-color:var(--accent)}
+.nores{font-size:12.5px;color:var(--faint);padding:8px 10px;list-style:none}
+.menuBtn{display:none}
+
+/* ===== cellulare =====
+   Il problema da risolvere: sotto gli 820px la barra laterale diventava un
+   elenco di decine di clienti impilato SOPRA al contenuto, e per arrivare agli
+   strumenti bisognava scorrerlo tutto. Ora è una barra compatta: il nome del
+   cliente fa da pulsante e apre l'elenco solo quando serve. */
+@media (max-width:820px){
+  .app{min-height:100dvh}
+
+  .side{position:sticky;top:0;z-index:20;padding:12px 14px;gap:12px;
+    background:var(--surface);border-bottom:1px solid var(--border);border-right:0}
+  .brand{gap:10px}
+  .brand>div:not(.mark){min-width:0}
+  .bname{font-size:14px}
+  .bsub{display:none}
+
+  .menuBtn{display:flex;align-items:center;gap:8px;margin-left:auto;flex:none;max-width:58%;
+    border:1px solid var(--border);background:var(--surface-2);color:var(--text);
+    border-radius:100px;padding:9px 14px;font-size:13px;font-weight:650;
+    white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+  .menuBtn[aria-expanded="true"]{border-color:var(--accent);color:var(--accent-ink)}
+
+  /* elenco e piè di pagina: solo a menu aperto */
+  .side .clientsWrap,.side .sidefoot{display:none}
+  .side.open .clientsWrap{display:block;max-height:62dvh;overflow:auto}
+  .side.open .sidefoot{display:flex}
+
+  .cbtn{padding:12px 10px}      /* dita, non puntatori */
+  .cname{font-size:15px}
+  .csearch{font-size:16px;padding:11px 12px}  /* 16px evita lo zoom automatico di iOS */
+
+  .main{padding:18px 14px 60px}
+  .chead{padding:16px;border-radius:12px}
+  .cheadTop{gap:12px}
+  .avatar{width:44px;height:44px;font-size:19px;border-radius:11px}
+  .ctitle{font-size:19px}
+
+  /* moduli: campi e pulsanti comodi da toccare */
+  .mdbox,.copyForm,.commentary{padding-left:16px;padding-right:16px}
+  .modHead{padding:13px 16px}
+  .modSub{margin-left:0;flex-basis:100%}
+  .tabs{margin-left:0;width:100%}
+  .tab,.btn,.copybtn{padding:10px 14px;font-size:13.5px}
+  .modBtns{padding-left:16px;padding-right:16px}
+  .copyForm input,.form input,.gfx .fld input{font-size:16px;padding:12px}
+  .copyForm .hint,.hint{overflow-wrap:anywhere}
+
+  /* scheda contenuto: anteprima grande sopra, didascalia sotto */
+  .post{grid-template-columns:1fr;gap:12px;padding:16px}
+  .thumb{max-width:200px;aspect-ratio:4/5}
+  .post .cap{font-size:15px}
+
+  .gfx{padding:14px}
+  .stats{padding-left:16px;padding-right:16px}
+}
+
+/* schermi molto stretti */
+@media (max-width:380px){
+  .menuBtn{max-width:52%;padding:8px 11px;font-size:12.5px}
+  .tools{gap:10px}
+}
+
+/* Le colonne di una griglia non si restringono sotto la larghezza del loro
+   contenuto, a meno di dirglielo: senza questo, su schermi stretti la pagina
+   sborda a destra e taglia badge e pulsanti. */
+.app>*{min-width:0}
+.cheadTop>div,.brand>div{min-width:0}
+.ctitle,.cmeta,.bname{overflow-wrap:anywhere}
+.mk-ok,.mk-no{white-space:nowrap}
+html{overflow-x:hidden}
+
+/* Titolo modulo: su schermo stretto il sottotitolo va a capo, non appiccicato. */
+.modTitle{min-width:0}
+@media (max-width:820px){
+  .modTitle .modSub{display:block;margin-left:0;margin-top:3px;line-height:1.45}
+}
