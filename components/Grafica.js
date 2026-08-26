@@ -1,6 +1,7 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
+import { rimuoviSfondo, haGiaTrasparenza, TOLLERANZE } from "../lib/sfondo";
 
 const FORMATS = {
   aperti: { name: "Siamo aperti", eyebrow: "MARTEDÌ 2 GIUGNO 2026", title: "SIAMO APERTI", subtitle: "Pranzo e cena" },
@@ -26,6 +27,7 @@ const FONTS = [
   ["tondo", "Tondo", '"Arial Rounded MT Bold","Trebuchet MS",system-ui,sans-serif'],
 ];
 const DARK = [["0", "No"], ["0.22", "Leggero"], ["0.42", "Medio"], ["0.6", "Forte"]];
+const PULIZIE = [["leggera", "Leggera"], ["media", "Media"], ["forte", "Forte"]];
 
 export default function Grafica({ clientName }) {
   const [fmt, setFmt] = useState("aperti");
@@ -40,6 +42,42 @@ export default function Grafica({ clientName }) {
   const [title, setTitle] = useState(FORMATS.aperti.title);
   const [subtitle, setSubtitle] = useState(FORMATS.aperti.subtitle);
   const [logo, setLogo] = useState(clientName);
+  // Logo vero del cliente, preso da Dropbox e ripulito dallo sfondo.
+  const [logoImg, setLogoImg] = useState(null);
+  const [logoInfo, setLogoInfo] = useState(null);
+  const [logoStato, setLogoStato] = useState("vuoto"); // vuoto | carico | ok | errore
+  const [logoMsg, setLogoMsg] = useState("");
+  const [pulizia, setPulizia] = useState("media");
+  const [togliFondo, setTogliFondo] = useState(true);
+  const [logoH, setLogoH] = useState(14); // altezza in % della grafica
+
+  // Cambiando cliente il logo di prima non c'entra più niente.
+  useEffect(() => {
+    setLogoImg(null); setLogoInfo(null); setLogoStato("vuoto"); setLogoMsg("");
+  }, [clientName]);
+
+  async function caricaLogo(livello = pulizia, rimuovi = togliFondo) {
+    setLogoStato("carico"); setLogoMsg("");
+    try {
+      const res = await fetch(`/api/logo?name=${encodeURIComponent(clientName)}`);
+      if (!res.ok) {
+        const j = await res.json().catch(() => ({}));
+        setLogoMsg(j.motivo || j.errore || "Non riesco a leggere il logo dalla cartella.");
+        setLogoStato("errore");
+        return;
+      }
+      const formato = res.headers.get("X-Logo-Formato") || "";
+      const img = await caricaBitmap(await res.blob());
+      const { dataUrl, nota } = elabora(img, rimuovi, TOLLERANZE[livello]);
+      setLogoImg(dataUrl);
+      setLogoInfo({ formato });
+      setLogoMsg(nota);
+      setLogoStato("ok");
+    } catch (e) {
+      setLogoMsg(String(e && e.message ? e.message : e));
+      setLogoStato("errore");
+    }
+  }
 
   const chooseFmt = (k) => {
     setFmt(k);
@@ -72,6 +110,40 @@ export default function Grafica({ clientName }) {
             <div className="fld"><label>Titolo</label><input value={title} onChange={(e) => setTitle(e.target.value)} /></div>
             <div className="fld"><label>Sottotitolo</label><input value={subtitle} onChange={(e) => setSubtitle(e.target.value)} /></div>
             <div className="fld"><label>Riga logo / testo in alto</label><input value={logo} onChange={(e) => setLogo(e.target.value)} /></div>
+
+            <div className="lab">Logo del cliente <span className="labnote">(dalla cartella Dropbox)</span></div>
+            {logoImg ? (
+              <>
+                <div className="logoBox">
+                  <img src={logoImg} alt="logo del cliente" />
+                  <div>
+                    <div className="logoNome">{logoInfo?.formato ? logoInfo.formato.toUpperCase() : "logo"} caricato</div>
+                    {logoMsg ? <div className="logoNota">{logoMsg}</div> : null}
+                  </div>
+                </div>
+                <div className="fld">
+                  <label>Dimensione logo</label>
+                  <input type="range" min="6" max="30" value={logoH} onChange={(e) => setLogoH(Number(e.target.value))} />
+                </div>
+                <div className="lab">Pulizia sfondo</div>
+                <div className="grid2">
+                  {PULIZIE.map(([k, l]) => (
+                    <button key={k} className={"fbtn" + (k === pulizia ? " on" : "")}
+                      onClick={() => { setPulizia(k); caricaLogo(k, true); }}>{l}</button>
+                  ))}
+                  <button className={"fbtn" + (togliFondo ? "" : " on")}
+                    onClick={() => { setTogliFondo(false); caricaLogo(pulizia, false); }}>Lascia lo sfondo</button>
+                </div>
+                <button className="rowbtn" onClick={() => { setLogoImg(null); setLogoStato("vuoto"); setLogoMsg(""); }}>✕ Togli il logo</button>
+              </>
+            ) : (
+              <>
+                <button className="rowbtn" disabled={logoStato === "carico"} onClick={() => caricaLogo()}>
+                  {logoStato === "carico" ? "Sto prendendo il logo…" : "🖼️ Aggiungi logo"}
+                </button>
+                {logoStato === "errore" ? <div className="logoNota err">{logoMsg}</div> : null}
+              </>
+            )}
 
             <div className="lab">Posizione testo</div>
             <div className="grid2">
@@ -114,7 +186,13 @@ export default function Grafica({ clientName }) {
               <div className="bg" style={{ background: BGS[bgi] }} />
               <div className="dark" style={{ background: `rgba(0,0,0,${dark})` }} />
               <div className="ov" />
-              <div className="logo">{logo}</div>
+              {logoImg ? (
+                <div className="logo img" style={{ "--logoH": logoH + "cqw" }}>
+                  <img src={logoImg} alt="" />
+                </div>
+              ) : (
+                <div className="logo">{logo}</div>
+              )}
               <div className="txt">
                 <div className="eyebrow">{eyebrow}</div>
                 {titleHtml ? (
@@ -131,6 +209,45 @@ export default function Grafica({ clientName }) {
       </div>
     </div>
   );
+}
+
+/** Carica un file immagine (png/jpg/webp/svg) in modo che si possa disegnare. */
+function caricaBitmap(blob) {
+  return new Promise((risolvi, rifiuta) => {
+    const url = URL.createObjectURL(blob);
+    const img = new Image();
+    img.onload = () => { URL.revokeObjectURL(url); risolvi(img); };
+    img.onerror = () => { URL.revokeObjectURL(url); rifiuta(new Error("Il file del logo non è leggibile.")); };
+    img.src = url;
+  });
+}
+
+/** Ridisegna il logo su una tela, gli toglie lo sfondo e lo restituisce come PNG. */
+function elabora(img, rimuovi, tolleranza) {
+  const lw = img.naturalWidth || img.width || 512;
+  const lh = img.naturalHeight || img.height || 512;
+  const scala = Math.min(1, 800 / Math.max(lw, lh));
+  const tela = document.createElement("canvas");
+  tela.width = Math.max(1, Math.round(lw * scala));
+  tela.height = Math.max(1, Math.round(lh * scala));
+  const ctx = tela.getContext("2d", { willReadFrequently: true });
+  ctx.drawImage(img, 0, 0, tela.width, tela.height);
+
+  let nota = "";
+  if (rimuovi) {
+    const dati = ctx.getImageData(0, 0, tela.width, tela.height);
+    if (haGiaTrasparenza(dati)) {
+      nota = "aveva già lo sfondo trasparente";
+    } else {
+      const esito = rimuoviSfondo(dati, tolleranza);
+      ctx.clearRect(0, 0, tela.width, tela.height);
+      ctx.putImageData(dati, 0, 0);
+      if (esito.percentuale < 0.05) nota = "sfondo poco uniforme: prova “Forte”";
+    }
+  } else {
+    nota = "sfondo lasciato com'era";
+  }
+  return { dataUrl: tela.toDataURL("image/png"), nota };
 }
 
 function Swatches({ list, cur, onPick }) {

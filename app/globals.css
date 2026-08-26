@@ -155,6 +155,22 @@ button{font-family:inherit;cursor:pointer}
 .gfx .bg{z-index:0}.gfx .dark{z-index:1}.gfx .ov{z-index:1;background:linear-gradient(180deg,rgba(0,0,0,.25) 0%,rgba(0,0,0,.15) 40%,rgba(0,0,0,.72) 100%)}
 .gfx .logo{position:absolute;z-index:3;left:50%;transform:translateX(-50%);top:6.5cqw;font-family:var(--serif);color:var(--ink);font-size:3.4cqw;letter-spacing:.12em;text-transform:uppercase;font-weight:700;text-align:center;opacity:.95;white-space:nowrap;text-shadow:0 1px 8px rgba(0,0,0,.5)}
 .gfx .logo::after{content:"";display:block;width:9cqw;height:2px;background:var(--line);margin:1.6cqw auto 0;opacity:.85}
+/* Logo vero del cliente al posto della scritta: niente stile da testo,
+   niente lineetta decorativa, altezza regolabile dal pannello. */
+.gfx .logo.img{text-shadow:none;letter-spacing:0;white-space:normal;line-height:0}
+.gfx .logo.img::after{display:none}
+.gfx .logo.img img{height:var(--logoH,14cqw);width:auto;max-width:60cqw;object-fit:contain;
+  filter:drop-shadow(0 2px 10px rgba(0,0,0,.45))}
+/* anteprima del logo nel pannello: scacchiera per far vedere la trasparenza */
+.logoBox{display:flex;gap:11px;align-items:center;margin:6px 0 10px}
+.logoBox img{width:64px;height:64px;object-fit:contain;border-radius:8px;padding:5px;
+  border:1px solid var(--border);
+  background-color:#fff;
+  background-image:linear-gradient(45deg,#d8d8d8 25%,transparent 25%),linear-gradient(-45deg,#d8d8d8 25%,transparent 25%),linear-gradient(45deg,transparent 75%,#d8d8d8 75%),linear-gradient(-45deg,transparent 75%,#d8d8d8 75%);
+  background-size:12px 12px;background-position:0 0,0 6px,6px -6px,-6px 0}
+.logoNome{font-size:12.5px;font-weight:650}
+.logoNota{font-size:11.5px;color:var(--faint);line-height:1.45;margin-top:2px}
+.logoNota.err{color:#E86B4F;margin:6px 0 2px}
 .gfx .txt{position:absolute;z-index:2;left:0;right:0;padding:0 8cqw;color:var(--ink)}
 .gfx .eyebrow{font-size:3.5cqw;letter-spacing:.34em;text-transform:uppercase;font-weight:600;opacity:.95}
 .gfx .title{font-family:var(--cond);font-weight:800;text-transform:uppercase;line-height:.92;letter-spacing:-.01em;text-shadow:0 2px 18px rgba(0,0,0,.35)}
