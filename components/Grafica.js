@@ -27,7 +27,7 @@ const FONTS = [
   ["tondo", "Tondo", '"Arial Rounded MT Bold","Trebuchet MS",system-ui,sans-serif'],
 ];
 const DARK = [["0", "No"], ["0.22", "Leggero"], ["0.42", "Medio"], ["0.6", "Forte"]];
-const PULIZIE = [["leggera", "Leggera"], ["media", "Media"], ["forte", "Forte"]];
+const PULIZIE = [["leggera", "Leggera"], ["media", "Media"], ["forte", "Forte"], ["massima", "Massima"]];
 
 export default function Grafica({ clientName }) {
   const [fmt, setFmt] = useState("aperti");
@@ -49,6 +49,7 @@ export default function Grafica({ clientName }) {
   const [logoMsg, setLogoMsg] = useState("");
   const [pulizia, setPulizia] = useState("media");
   const [togliFondo, setTogliFondo] = useState(true);
+  const [ancheDentro, setAncheDentro] = useState(false);
   const [logoH, setLogoH] = useState(14); // altezza in % della grafica
 
   // Cambiando cliente il logo di prima non c'entra più niente.
@@ -56,7 +57,7 @@ export default function Grafica({ clientName }) {
     setLogoImg(null); setLogoInfo(null); setLogoStato("vuoto"); setLogoMsg("");
   }, [clientName]);
 
-  async function caricaLogo(livello = pulizia, rimuovi = togliFondo) {
+  async function caricaLogo(livello = pulizia, rimuovi = togliFondo, dentro = ancheDentro) {
     setLogoStato("carico"); setLogoMsg("");
     try {
       const res = await fetch(`/api/logo?name=${encodeURIComponent(clientName)}`);
@@ -68,7 +69,7 @@ export default function Grafica({ clientName }) {
       }
       const formato = res.headers.get("X-Logo-Formato") || "";
       const img = await caricaBitmap(await res.blob());
-      const { dataUrl, nota } = elabora(img, rimuovi, TOLLERANZE[livello]);
+      const { dataUrl, nota } = elabora(img, rimuovi, TOLLERANZE[livello], dentro);
       setLogoImg(dataUrl);
       setLogoInfo({ formato });
       setLogoMsg(nota);
@@ -128,11 +129,19 @@ export default function Grafica({ clientName }) {
                 <div className="lab">Pulizia sfondo</div>
                 <div className="grid2">
                   {PULIZIE.map(([k, l]) => (
-                    <button key={k} className={"fbtn" + (k === pulizia ? " on" : "")}
-                      onClick={() => { setPulizia(k); caricaLogo(k, true); }}>{l}</button>
+                    <button key={k} className={"fbtn" + (togliFondo && k === pulizia ? " on" : "")}
+                      onClick={() => { setPulizia(k); setTogliFondo(true); caricaLogo(k, true, ancheDentro); }}>{l}</button>
                   ))}
                   <button className={"fbtn" + (togliFondo ? "" : " on")}
-                    onClick={() => { setTogliFondo(false); caricaLogo(pulizia, false); }}>Lascia lo sfondo</button>
+                    onClick={() => { setTogliFondo(false); caricaLogo(pulizia, false, ancheDentro); }}>Lascia lo sfondo</button>
+                </div>
+                <button className={"rowbtn" + (ancheDentro ? " primary" : "")}
+                  onClick={() => { const v = !ancheDentro; setAncheDentro(v); caricaLogo(pulizia, true, v); }}>
+                  {ancheDentro ? "✓ Pulisce anche dentro il logo" : "Pulisci anche dentro il logo"}
+                </button>
+                <div className="logoNota">
+                  Da usare se resta del bianco nei buchi delle lettere o dentro una cornice.
+                  Tienilo spento se il logo ha scritte bianche su fondo scuro: sparirebbero.
                 </div>
                 <button className="rowbtn" onClick={() => { setLogoImg(null); setLogoStato("vuoto"); setLogoMsg(""); }}>✕ Togli il logo</button>
               </>
@@ -223,7 +232,7 @@ function caricaBitmap(blob) {
 }
 
 /** Ridisegna il logo su una tela, gli toglie lo sfondo e lo restituisce come PNG. */
-function elabora(img, rimuovi, tolleranza) {
+function elabora(img, rimuovi, tolleranza, ancheDentro = false) {
   const lw = img.naturalWidth || img.width || 512;
   const lh = img.naturalHeight || img.height || 512;
   const scala = Math.min(1, 800 / Math.max(lw, lh));
@@ -239,10 +248,10 @@ function elabora(img, rimuovi, tolleranza) {
     if (haGiaTrasparenza(dati)) {
       nota = "aveva già lo sfondo trasparente";
     } else {
-      const esito = rimuoviSfondo(dati, tolleranza);
+      const esito = rimuoviSfondo(dati, tolleranza, { ancheDentro, rifinisci: true });
       ctx.clearRect(0, 0, tela.width, tela.height);
       ctx.putImageData(dati, 0, 0);
-      if (esito.percentuale < 0.05) nota = "sfondo poco uniforme: prova “Forte”";
+      if (esito.percentuale < 0.05) nota = "sfondo poco uniforme: prova “Forte” o “Massima”";
     }
   } else {
     nota = "sfondo lasciato com'era";
