@@ -2,6 +2,9 @@
 
 import { useState } from "react";
 
+const PASSO_PREDEFINITO =
+  "Proseguiamo sul filone di contenuti che ha generato più interazioni e sosteniamo la copertura con una campagna nei periodi forti.";
+
 export default function Report({ clientName }) {
   const [m, setM] = useState({
     per: "Luglio 2026",
@@ -11,10 +14,16 @@ export default function Report({ clientName }) {
     int: "3.120",
     vis: "1.050",
     top: "Reel del prodotto — 42.000 visualizzazioni",
+    attivita: "",
+    passo: PASSO_PREDEFINITO,
+    nota: "",
+    firma: "",
   });
   const [done, setDone] = useState(false);
   const [scarico, setScarico] = useState(false);
   const [errore, setErrore] = useState("");
+  const set = (k) => (e) => setM({ ...m, [k]: e.target.value });
+  const voci = m.attivita.split("\n").map((v) => v.trim()).filter(Boolean);
 
   // Chiede il PDF al server e lo consegna al browser come file vero.
   async function scaricaPdf() {
@@ -41,12 +50,11 @@ export default function Report({ clientName }) {
       setScarico(false);
     }
   }
-  const set = (k) => (e) => setM({ ...m, [k]: e.target.value });
 
   return (
     <div className="mod">
       <div className="modHead">
-        <div><b>Report andamento — {clientName}</b><span className="modSub">incolla i numeri da Meta Business Suite</span></div>
+        <div><b>Report andamento — {clientName}</b><span className="modSub">i numeri da Business Suite, il resto lo scrivi tu</span></div>
       </div>
 
       {!done ? (
@@ -59,6 +67,30 @@ export default function Report({ clientName }) {
             <Fld label="Interazioni" v={m.int} on={set("int")} />
             <Fld label="Visite al profilo" v={m.vis} on={set("vis")} />
             <Fld label="Contenuto migliore" v={m.top} on={set("top")} wide />
+
+            <Area
+              label="Cosa abbiamo fatto"
+              nota="Una riga per attività: diventano un elenco puntato nel PDF. Es. “3 shooting in negozio”, “12 contenuti pubblicati”, “campagna sull'offerta di agosto”."
+              v={m.attivita}
+              on={set("attivita")}
+              righe={4}
+              placeholder={"12 contenuti pubblicati tra post e reel\nShooting dedicato ai nuovi arrivi\nCampagna advertising sulla promo di fine stagione"}
+            />
+            <Area
+              label="Cosa proponiamo adesso"
+              nota="La proposta per il periodo che viene: è la parte che il cliente legge più volentieri."
+              v={m.passo}
+              on={set("passo")}
+              righe={3}
+            />
+            <Area
+              label="Una nota per il cliente (facoltativa)"
+              nota="Due righe personali, come le diresti al telefono. Nel PDF escono in corsivo."
+              v={m.nota}
+              on={set("nota")}
+              righe={3}
+            />
+            <Fld label="Firma (facoltativa)" v={m.firma} on={set("firma")} placeholder="Luisa — MiglioriAmo" />
           </div>
           <div className="modBtns">
             <button className="btn primary" onClick={() => setDone(true)}>Genera report →</button>
@@ -72,16 +104,36 @@ export default function Report({ clientName }) {
             <Tile l="Interazioni" v={m.int} />
             <Tile l="Visite profilo" v={m.vis} />
           </div>
+
           <div className="commentary">
+            {voci.length ? (
+              <>
+                <div className="secLab">Cosa abbiamo fatto</div>
+                <ul className="attList">{voci.map((v, i) => <li key={i}>{v}</li>)}</ul>
+              </>
+            ) : null}
+
+            {m.top ? (
+              <>
+                <div className="secLab">Il contenuto che ha funzionato meglio</div>
+                <p>{m.top}</p>
+              </>
+            ) : null}
+
+            <div className="secLab">Come leggiamo questi numeri</div>
             <p>
               A {m.per.toLowerCase()} il profilo di <b>{clientName}</b> ha raggiunto <b>{m.reach}</b> persone
-              (<b>{m.reachd}</b> rispetto al mese scorso), con <b>{m.fol}</b> nuovi follower e <b>{m.int}</b> interazioni.
-              Il contenuto che ha funzionato meglio è stato <b>{m.top}</b>.
+              ({m.reachd} rispetto al periodo precedente), con <b>{m.fol}</b> nuovi follower e <b>{m.int}</b> interazioni.
+              Le visite al profilo (<b>{m.vis}</b>) sono il segnale più vicino al negozio: sono le persone che, dopo aver
+              visto un contenuto, hanno voluto sapere chi siete.
             </p>
-            <p className="sug">💡 Prossimo passo: proporre più contenuti sul filone che ha generato interazioni e sostenere la copertura con una campagna sui periodi forti del cliente.</p>
+
+            {m.passo ? <p className="sug">Cosa proponiamo adesso: {m.passo}</p> : null}
+            {m.nota ? <p className="notaCli">“{m.nota}”{m.firma ? <span> — {m.firma}</span> : null}</p> : null}
           </div>
+
           <div className="modBtns">
-            <button className="btn" onClick={() => setDone(false)}>← Modifica numeri</button>
+            <button className="btn" onClick={() => setDone(false)}>← Modifica</button>
             <button className="btn primary" onClick={scaricaPdf} disabled={scarico}>
               {scarico ? "Preparo il PDF…" : "📄 Scarica il PDF"}
             </button>
@@ -93,11 +145,20 @@ export default function Report({ clientName }) {
   );
 }
 
-function Fld({ label, v, on, wide }) {
+function Fld({ label, v, on, wide, placeholder }) {
   return (
     <div className={"fld2" + (wide ? " wide" : "")}>
       <label>{label}</label>
-      <input value={v} onChange={on} />
+      <input value={v} onChange={on} placeholder={placeholder} />
+    </div>
+  );
+}
+function Area({ label, nota, v, on, righe = 3, placeholder }) {
+  return (
+    <div className="fld2 wide">
+      <label>{label}</label>
+      {nota ? <div className="fldNota">{nota}</div> : null}
+      <textarea value={v} onChange={on} rows={righe} placeholder={placeholder} />
     </div>
   );
 }
