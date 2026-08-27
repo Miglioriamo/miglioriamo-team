@@ -13,6 +13,34 @@ export default function Report({ clientName }) {
     top: "Reel del prodotto — 42.000 visualizzazioni",
   });
   const [done, setDone] = useState(false);
+  const [scarico, setScarico] = useState(false);
+  const [errore, setErrore] = useState("");
+
+  // Chiede il PDF al server e lo consegna al browser come file vero.
+  async function scaricaPdf() {
+    setScarico(true); setErrore("");
+    try {
+      const res = await fetch("/api/report-pdf", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ cliente: clientName, ...m }),
+      });
+      if (!res.ok) throw new Error("Il server non è riuscito a creare il PDF.");
+      const blob = await res.blob();
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = `Report ${clientName} ${m.per}.pdf`;
+      document.body.appendChild(a);
+      a.click();
+      a.remove();
+      setTimeout(() => URL.revokeObjectURL(url), 4000);
+    } catch (e) {
+      setErrore(String(e && e.message ? e.message : e));
+    } finally {
+      setScarico(false);
+    }
+  }
   const set = (k) => (e) => setM({ ...m, [k]: e.target.value });
 
   return (
@@ -54,8 +82,11 @@ export default function Report({ clientName }) {
           </div>
           <div className="modBtns">
             <button className="btn" onClick={() => setDone(false)}>← Modifica numeri</button>
-            <button className="btn" onClick={() => alert("Nell'app vera: salvataggio su Dropbox output/report/ + PDF brandizzato")}>📄 Esporta PDF</button>
+            <button className="btn primary" onClick={scaricaPdf} disabled={scarico}>
+              {scarico ? "Preparo il PDF…" : "📄 Scarica il PDF"}
+            </button>
           </div>
+          {errore ? <div className="empty">⚠️ {errore}</div> : null}
         </>
       )}
     </div>
