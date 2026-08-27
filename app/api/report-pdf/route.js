@@ -88,7 +88,10 @@ export async function POST(request) {
       `sono le persone che, dopo aver visto un contenuto, hanno voluto sapere chi siete.`
     : "";
 
-  const voci = pulisci(d.attivita).split("\n").map((v) => v.trim()).filter(Boolean);
+  const racconto = pulisci(d.racconto);
+  // Se l'AI ha scritto il discorso si usa quello; altrimenti restano gli appunti
+  // dell'operatore, uno per riga, come elenco puntato.
+  const voci = racconto ? [] : pulisci(d.attivita).split("\n").map((v) => v.trim()).filter(Boolean);
   const passo = pulisci(d.passo);
   const nota = pulisci(d.nota);
   const firma = pulisci(d.firma);
@@ -158,6 +161,11 @@ export async function POST(request) {
       y -= hT + sp(12);
     }
 
+    if (racconto) {
+      titoletto("Cosa abbiamo fatto");
+      testo(racconto);
+    }
+
     if (voci.length) {
       titoletto("Cosa abbiamo fatto");
       for (const voce of voci) {
@@ -187,15 +195,18 @@ export async function POST(request) {
       titoletto("Cosa proponiamo adesso");
       const righe = aCapo(passo, normale, 11, LARGHEZZA - 32);
       const interlinea = sp(16);
-      const h = righe.length * interlinea + sp(20);
-      spazio(h + sp(8));
+      const h = righe.length * interlinea + sp(18);
+      spazio(h + sp(10));
+      // Il riquadro sale solo di pochissimo sopra la riga corrente: se salisse
+      // di più (come faceva prima) andrebbe a coprire il titolo della sezione.
+      const cima = y + sp(6);
       if (!prova) {
-        pagina.drawRectangle({ x: MARGINE, y: y - h + sp(20), width: LARGHEZZA, height: h, color: CHIARO });
-        pagina.drawRectangle({ x: MARGINE, y: y - h + sp(20), width: 4, height: h, color: ARANCIO });
-        let yy = y - sp(4);
+        pagina.drawRectangle({ x: MARGINE, y: cima - h, width: LARGHEZZA, height: h, color: CHIARO });
+        pagina.drawRectangle({ x: MARGINE, y: cima - h, width: 4, height: h, color: ARANCIO });
+        let yy = cima - sp(16);
         for (const riga of righe) { pagina.drawText(riga, { x: MARGINE + 18, y: yy, size: 11, font: normale, color: SCURO }); yy -= interlinea; }
       }
-      y -= h + sp(6);
+      y = cima - h - sp(8);
     }
 
     if (nota) {
