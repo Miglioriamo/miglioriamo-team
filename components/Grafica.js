@@ -29,7 +29,7 @@ const FONTS = [
 ];
 const DARK = [["0", "No"], ["0.22", "Leggero"], ["0.42", "Medio"], ["0.6", "Forte"]];
 const PULIZIE = [["leggera", "Leggera"], ["media", "Media"], ["forte", "Forte"], ["massima", "Massima"]];
-const TIPI_BG = [["tinta", "Tinta unita"], ["sfumatura", "Sfumatura"], ["fantasia", "Fantasia"]];
+const TIPI_BG = [["foto", "Foto"], ["tinta", "Tinta unita"], ["sfumatura", "Sfumatura"], ["fantasia", "Fantasia"]];
 const DIREZIONI = [["verticale", "Dall'alto"], ["diagonale", "Diagonale"], ["radiale", "Dal centro"]];
 // Fondi che reggono bene il testo: scuri profondi, neutri caldi e qualche colore pieno.
 const SFONDI = ["#111111", "#1C1F2A", "#241A10", "#12241C", "#2A1510", "#3A2E4A",
@@ -49,6 +49,22 @@ export default function Grafica({ clientName }) {
   const [col2Auto, setCol2Auto] = useState(true); // finché non lo scegli tu, lo abbino io
   const [dir, setDir] = useState("verticale");
   const [palette, setPalette] = useState([]);
+  const [foto, setFoto] = useState(null);        // { url, nome }
+  const [inquadratura, setInquadratura] = useState(50); // quale parte della foto resta nel 4:5
+
+  // La foto sta solo nel browser: si sceglie dal computer e si vede subito.
+  function scegliFoto(e) {
+    const file = e.target.files && e.target.files[0];
+    e.target.value = ""; // così ricaricando lo stesso file riparte comunque
+    if (!file) return;
+    if (foto) URL.revokeObjectURL(foto.url);
+    setFoto({ url: URL.createObjectURL(file), nome: file.name });
+    setBgTipo("foto");
+  }
+  function togliFoto() {
+    if (foto) URL.revokeObjectURL(foto.url);
+    setFoto(null);
+  }
   const [eyebrow, setEyebrow] = useState(FORMATS.aperti.eyebrow);
   const [title, setTitle] = useState(FORMATS.aperti.title);
   const [subtitle, setSubtitle] = useState(FORMATS.aperti.subtitle);
@@ -66,6 +82,9 @@ export default function Grafica({ clientName }) {
   // Cambiando cliente il logo di prima non c'entra più niente.
   useEffect(() => {
     setLogoImg(null); setLogoInfo(null); setLogoStato("vuoto"); setLogoMsg(""); setPalette([]);
+    // via anche la foto: è di un altro cliente
+    setFoto((f) => { if (f) URL.revokeObjectURL(f.url); return null; });
+    setInquadratura(50);
   }, [clientName]);
 
   // Scegliendo il colore principale, il secondo si abbina da solo (più scuro),
@@ -77,7 +96,9 @@ export default function Grafica({ clientName }) {
   const scegliCol2 = (c) => { setCol2Auto(false); setCol2(c); };
 
   const sfondoCss =
-    bgTipo === "tinta"
+    bgTipo === "foto" && foto
+      ? `url("${foto.url}") 50% ${inquadratura}% / cover no-repeat`
+      : bgTipo === "tinta"
       ? col1
       : bgTipo === "sfumatura"
       ? dir === "radiale"
@@ -211,7 +232,30 @@ export default function Grafica({ clientName }) {
               ))}
             </div>
 
-            {bgTipo === "fantasia" ? (
+            {bgTipo === "foto" ? (
+              <>
+                <label className="rowbtn fileBtn">
+                  {foto ? "🖼️ Cambia foto" : "🖼️ Scegli una foto dal computer"}
+                  <input type="file" accept="image/*" onChange={scegliFoto} />
+                </label>
+                {foto ? (
+                  <>
+                    <div className="logoNota">{foto.nome}</div>
+                    <div className="fld">
+                      <label>Inquadratura <span className="labnote">(cosa resta dentro il formato 4:5)</span></label>
+                      <input type="range" min="0" max="100" value={inquadratura}
+                        onChange={(e) => setInquadratura(Number(e.target.value))} />
+                    </div>
+                    <button className="rowbtn" onClick={togliFoto}>✕ Togli la foto</button>
+                    <div className="logoNota">
+                      Se la foto è chiara e le scritte si leggono male, alza il <b>velo scuro</b> qui sotto.
+                    </div>
+                  </>
+                ) : (
+                  <div className="logoNota">Va bene una foto qualsiasi del cliente: piatto, vetrina, locale. Viene ritagliata nel formato 4:5.</div>
+                )}
+              </>
+            ) : bgTipo === "fantasia" ? (
               <button className="rowbtn" onClick={() => setBgi((bgi + 1) % BGS.length)}>🔄 Cambia fantasia</button>
             ) : (
               <>
@@ -271,7 +315,7 @@ export default function Grafica({ clientName }) {
               </div>
             </div>
             <div className="srcbadge">
-              Sfondo: <b>{bgTipo === "tinta" ? "tinta unita" : bgTipo === "sfumatura" ? "sfumatura" : "fantasia"}</b> · 4:5
+              Sfondo: <b>{bgTipo === "foto" ? (foto ? "foto del cliente" : "foto da scegliere") : bgTipo === "tinta" ? "tinta unita" : bgTipo === "sfumatura" ? "sfumatura" : "fantasia"}</b> · 4:5
             </div>
           </div>
         </div>
