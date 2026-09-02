@@ -100,6 +100,42 @@ export default function Grafica({ clientName }) {
   };
   const scegliCol2 = (c) => { setCol2Auto(false); setCol2(c); };
 
+  async function caricaLogo(livello = pulizia, rimuovi = togliFondo, dentro = ancheDentro) {
+    setLogoStato("carico"); setLogoMsg("");
+    try {
+      const res = await fetch(`/api/logo?name=${encodeURIComponent(clientName)}`);
+      if (!res.ok) {
+        const j = await res.json().catch(() => ({}));
+        setLogoMsg(j.motivo || j.errore || "Non riesco a leggere il logo dalla cartella.");
+        setLogoStato("errore");
+        return;
+      }
+      const formato = res.headers.get("X-Logo-Formato") || "";
+      const img = await caricaBitmap(await res.blob());
+      const { dataUrl, nota, colori } = elabora(img, rimuovi, TOLLERANZE[livello], dentro);
+      setLogoImg(dataUrl);
+      setPalette(colori);
+      setLogoInfo({ formato });
+      setLogoMsg(nota);
+      setLogoStato("ok");
+    } catch (e) {
+      setLogoMsg(String(e && e.message ? e.message : e));
+      setLogoStato("errore");
+    }
+  }
+
+  const chooseFmt = (k) => {
+    setFmt(k);
+    setEyebrow(FORMATS[k].eyebrow);
+    setTitle(FORMATS[k].title);
+    setSubtitle(FORMATS[k].subtitle);
+  };
+
+
+  const stack = FONTS.find((f) => f[0] === font)[2];
+  // Nel formato Offerta il prezzo (la parola col €) va in grassetto colorato.
+  const titleHtml = fmt === "offerta" ? title.replace(/(\S*€\S*)/, "<b>$1</b>") : null;
+
   const fondo = {
     tipo: bgTipo, foto: foto?.url, inquadratura,
     col1, col2, dir, fantasia: bgi,
