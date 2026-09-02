@@ -3,6 +3,9 @@
 import { useEffect, useState } from "react";
 import { rimuoviSfondo, haGiaTrasparenza, TOLLERANZE } from "../lib/sfondo";
 import { estraiColori, scurisci } from "../lib/palette";
+import { TAGLI, sfondoCss, disegnaGrafica } from "../lib/grafica";
+
+const SANS = 'ui-sans-serif,system-ui,-apple-system,"Segoe UI",Roboto,Helvetica,Arial,sans-serif';
 
 const FORMATS = {
   aperti: { name: "Siamo aperti", eyebrow: "MARTEDÌ 2 GIUGNO 2026", title: "SIAMO APERTI", subtitle: "Pranzo e cena" },
@@ -50,7 +53,9 @@ export default function Grafica({ clientName }) {
   const [dir, setDir] = useState("verticale");
   const [palette, setPalette] = useState([]);
   const [foto, setFoto] = useState(null);        // { url, nome }
-  const [inquadratura, setInquadratura] = useState(50); // quale parte della foto resta nel 4:5
+  const [inquadratura, setInquadratura] = useState(50); // quale parte della foto resta nel taglio
+  const [taglio, setTaglio] = useState("post");
+  const [salvo, setSalvo] = useState(false);
 
   // La foto sta solo nel browser: si sceglie dal computer e si vede subito.
   function scegliFoto(e) {
@@ -95,52 +100,42 @@ export default function Grafica({ clientName }) {
   };
   const scegliCol2 = (c) => { setCol2Auto(false); setCol2(c); };
 
-  const sfondoCss =
-    bgTipo === "foto" && foto
-      ? `url("${foto.url}") 50% ${inquadratura}% / cover no-repeat`
-      : bgTipo === "tinta"
-      ? col1
-      : bgTipo === "sfumatura"
-      ? dir === "radiale"
-        ? `radial-gradient(120% 90% at 50% 25%, ${col1} 0%, ${col2} 100%)`
-        : dir === "diagonale"
-        ? `linear-gradient(135deg, ${col1} 0%, ${col2} 100%)`
-        : `linear-gradient(180deg, ${col1} 0%, ${col2} 100%)`
-      : BGS[bgi];
-
-  async function caricaLogo(livello = pulizia, rimuovi = togliFondo, dentro = ancheDentro) {
-    setLogoStato("carico"); setLogoMsg("");
-    try {
-      const res = await fetch(`/api/logo?name=${encodeURIComponent(clientName)}`);
-      if (!res.ok) {
-        const j = await res.json().catch(() => ({}));
-        setLogoMsg(j.motivo || j.errore || "Non riesco a leggere il logo dalla cartella.");
-        setLogoStato("errore");
-        return;
-      }
-      const formato = res.headers.get("X-Logo-Formato") || "";
-      const img = await caricaBitmap(await res.blob());
-      const { dataUrl, nota, colori } = elabora(img, rimuovi, TOLLERANZE[livello], dentro);
-      setLogoImg(dataUrl);
-      setPalette(colori);
-      setLogoInfo({ formato });
-      setLogoMsg(nota);
-      setLogoStato("ok");
-    } catch (e) {
-      setLogoMsg(String(e && e.message ? e.message : e));
-      setLogoStato("errore");
-    }
-  }
-
-  const chooseFmt = (k) => {
-    setFmt(k);
-    setEyebrow(FORMATS[k].eyebrow);
-    setTitle(FORMATS[k].title);
-    setSubtitle(FORMATS[k].subtitle);
+  const fondo = {
+    tipo: bgTipo, foto: foto?.url, inquadratura,
+    col1, col2, dir, fantasia: bgi,
   };
 
-  const stack = FONTS.find((f) => f[0] === font)[2];
-  const titleHtml = fmt === "offerta" ? title.replace(/(\S*€\S*)/, "<b>$1</b>") : null;
+  // Ridisegna la grafica a piena risoluzione e la fa scaricare.
+  async function scaricaGrafica() {
+    setSalvo(true);
+    try {
+      const T = TAGLI[taglio];
+      const tela = document.createElement("canvas");
+      tela.width = T.w; tela.height = T.h;
+      const ctx = tela.getContext("2d");
+      const [imgFoto, imgLogo] = await Promise.all([apri(foto?.url), apri(logoImg)]);
+
+      disegnaGrafica(ctx, {
+        larghezza: T.w, rapporto: T.rapporto,
+        formato: fmt, posizione: pos, ink, line,
+        fontTitolo: stack, fontTesto: SANS,
+        sfondo: bgTipo, foto: imgFoto, inquadratura, col1, col2, dir, fantasia: bgi,
+        velo: Number(dark) || 0,
+        eyebrow, titolo: title, sottotitolo: subtitle,
+        logo: imgLogo, logoH, logoTesto: imgLogo ? "" : logo,
+      });
+
+      const blob = await new Promise((r) => tela.toBlob(r, "image/png"));
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = `${clientName} - ${FORMATS[fmt].name} ${taglio === "reel" ? "9x16" : "4x5"}.png`;
+      document.body.appendChild(a); a.click(); a.remove();
+      setTimeout(() => URL.revokeObjectURL(url), 4000);
+    } finally {
+      setSalvo(false);
+    }
+  }
 
   return (
     <div className="mod">
@@ -151,6 +146,13 @@ export default function Grafica({ clientName }) {
       <div className="gfx">
         <div className="layout">
           <div className="panel">
+            <div className="lab">Dove va pubblicata</div>
+            <div className="grid2">
+              {Object.entries(TAGLI).map(([k, t]) => (
+                <button key={k} className={"fbtn" + (k === taglio ? " on" : "")} onClick={() => setTaglio(k)}>{t.nome}</button>
+              ))}
+            </div>
+
             <div className="lab">Format</div>
             <div className="grid2">
               {ORDER.map((k) => (
@@ -289,12 +291,15 @@ export default function Grafica({ clientName }) {
               ))}
             </div>
 
-            <button className="rowbtn primary" onClick={() => alert("Grafica pronta (nell'app vera: salvataggio su Dropbox + PNG)")}>💾 Salva grafica</button>
+            <button className="rowbtn primary" onClick={scaricaGrafica} disabled={salvo}>
+              {salvo ? "Preparo l'immagine…" : "⬇️ Scarica la grafica"}
+            </button>
           </div>
 
           <div className="stageWrap">
-            <div className={`stage fmt-${fmt} pos-${pos}`} style={{ "--ink": ink, "--line": line }}>
-              <div className="bg" style={{ background: sfondoCss }} />
+            <div className={`stage fmt-${fmt} pos-${pos}`}
+                 style={{ "--ink": ink, "--line": line, aspectRatio: TAGLI[taglio].css }}>
+              <div className="bg" style={{ background: sfondoCss(fondo) }} />
               <div className="dark" style={{ background: `rgba(0,0,0,${dark})` }} />
               <div className="ov" />
               {logoImg ? (
@@ -315,7 +320,8 @@ export default function Grafica({ clientName }) {
               </div>
             </div>
             <div className="srcbadge">
-              Sfondo: <b>{bgTipo === "foto" ? (foto ? "foto del cliente" : "foto da scegliere") : bgTipo === "tinta" ? "tinta unita" : bgTipo === "sfumatura" ? "sfumatura" : "fantasia"}</b> · 4:5
+              Sfondo: <b>{bgTipo === "foto" ? (foto ? "foto del cliente" : "foto da scegliere") : bgTipo === "tinta" ? "tinta unita" : bgTipo === "sfumatura" ? "sfumatura" : "fantasia"}</b>
+              {" · "}{TAGLI[taglio].w}×{TAGLI[taglio].h}
             </div>
           </div>
         </div>
@@ -325,6 +331,17 @@ export default function Grafica({ clientName }) {
 }
 
 /** Carica un file immagine (png/jpg/webp/svg) in modo che si possa disegnare. */
+/** Apre un'immagine da un indirizzo (foto scelta o logo già ripulito). */
+function apri(src) {
+  if (!src) return Promise.resolve(null);
+  return new Promise((risolvi) => {
+    const img = new Image();
+    img.onload = () => risolvi(img);
+    img.onerror = () => risolvi(null);
+    img.src = src;
+  });
+}
+
 function caricaBitmap(blob) {
   return new Promise((risolvi, rifiuta) => {
     const url = URL.createObjectURL(blob);
