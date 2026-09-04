@@ -1,6 +1,21 @@
 import { PDFDocument, StandardFonts, rgb } from "pdf-lib";
 import { downloadBinary, getThumbnailBuffer } from "../../../lib/dropbox";
 import { trovaLogoCliente } from "../../../lib/logo";
+import { salvaOutput, scritturaAttiva } from "../../../lib/scrittura";
+import { linkCondivisibile } from "../../../lib/dropbox";
+
+const MESI_IT = ["gennaio","febbraio","marzo","aprile","maggio","giugno",
+                 "luglio","agosto","settembre","ottobre","novembre","dicembre"];
+
+// "Agosto 2026" -> "2026-08", così l'archivio è ordinato per periodo del report
+// e non per il giorno in cui qualcuno ha premuto il tasto.
+function meseDaPeriodo(per) {
+  const t = String(per || "").toLowerCase();
+  const anno = (t.match(/(20\d\d)/) || [])[1];
+  const i = MESI_IT.findIndex((m) => t.includes(m));
+  if (!anno || i < 0) return null;
+  return `${anno}-${String(i + 1).padStart(2, "0")}`;
+}
 
 export const dynamic = "force-dynamic";
 export const maxDuration = 30;
@@ -245,6 +260,29 @@ export async function POST(request) {
 
   const bytes = await pdf.save();
   const nomeFile = `Report ${cliente} ${periodo}`.replace(/[\\/:*?"<>|]/g, " ").replace(/\s+/g, " ").trim() + ".pdf";
+
+  // Su richiesta il PDF non viene scaricato ma archiviato nella cartella del
+  // cliente: è così che il lavoro fatto smette di evaporare.
+  if (d.archivia) {
+    if (!scritturaAttiva())
+      return Response.json(
+        { ok: false, motivo: "L'archiviazione su Dropbox non è attiva su questo indirizzo." },
+        { status: 503 }
+      );
+    try {
+      const salvato = await salvaOutput({
+        cliente: d.cliente,
+        tipo: "report",
+        nomeFile,
+        contenuto: Buffer.from(bytes),
+        mese: meseDaPeriodo(periodo),
+      });
+      const link = await linkCondivisibile(salvato.percorso).catch(() => null);
+      return Response.json({ ok: true, percorso: salvato.percorso, nome: salvato.nome, link });
+    } catch (e) {
+      return Response.json({ ok: false, motivo: String(e && e.message ? e.message : e) }, { status: 502 });
+    }
+  }
 
   return new Response(bytes, {
     headers: {
