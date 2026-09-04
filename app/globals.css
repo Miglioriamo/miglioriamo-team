@@ -52,11 +52,32 @@ button{font-family:inherit;cursor:pointer}
 .ctitle{font-size:22px;font-weight:750;letter-spacing:-.02em}
 .cmeta{font-size:13px;color:var(--muted);margin-top:2px}
 .sech{font-size:15px;font-weight:700;letter-spacing:-.01em;margin:24px 2px 12px}
+/* Logo vero del cliente al posto dell'iniziale: si riconosce a colpo d'occhio.
+   Fondo chiaro perché i loghi trasparenti sono quasi sempre scuri. */
+.avatarImg{background:#fff;object-fit:contain;padding:6px;border:1px solid var(--border)}
+
+/* Cosa abbiamo prodotto: prima qui sotto c'era mezza pagina vuota. */
+.lavori{background:var(--surface);border:1px solid var(--border);border-radius:14px;padding:18px 20px;margin-top:22px}
+.lavori.vuoto{border-style:dashed}
+.lavHead{display:flex;align-items:baseline;justify-content:space-between;gap:12px;flex-wrap:wrap;margin-bottom:12px}
+.lavTitolo{font-size:15px;font-weight:700;letter-spacing:-.01em}
+.lavConta{display:flex;gap:6px;flex-wrap:wrap}
+.lavChip{font-size:11px;font-weight:650;color:var(--muted);background:var(--surface-2);
+  border:1px solid var(--border);border-radius:100px;padding:3px 9px}
+.lavLista{list-style:none;margin:0;padding:0;display:flex;flex-direction:column}
+.lavLista li{display:flex;align-items:center;gap:12px;padding:9px 0;border-top:1px solid var(--border);font-size:13.5px}
+.lavLista li:first-child{border-top:0}
+.lavTipo{font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.05em;color:var(--accent-ink);
+  background:var(--accent-soft);border-radius:6px;padding:3px 8px;flex:none;min-width:74px;text-align:center}
+.lavNome{flex:1;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.lavMese{color:var(--faint);font-size:12px;flex:none}
+.lavori .note{margin:6px 0 0}
+@media(max-width:640px){.lavMese{display:none}}
 .tools{display:grid;grid-template-columns:repeat(3,1fr);gap:13px}
 .tool{background:var(--surface);border:1px solid var(--border);border-radius:14px;padding:17px;text-align:left;
   display:flex;flex-direction:column;gap:9px;min-height:118px;transition:transform .14s,border-color .14s}
-.tool:hover{transform:translateY(-2px);border-color:var(--accent)}
-.tic{width:34px;height:34px;border-radius:9px;background:var(--surface-2);display:grid;place-items:center;font-size:18px}
+.tool:hover{transform:translateY(-2px);border-color:var(--accent);box-shadow:0 8px 22px rgba(0,0,0,.18)}
+.tic{width:36px;height:36px;border-radius:10px;background:var(--accent-soft);display:grid;place-items:center;font-size:18px}
 .tt{font-size:14.5px;font-weight:700}
 .td{font-size:12px;color:var(--muted);line-height:1.4}
 .badge{font-size:10px;font-weight:650;letter-spacing:.04em;text-transform:uppercase;color:var(--accent-ink);
