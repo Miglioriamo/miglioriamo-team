@@ -5,6 +5,7 @@ import Copy from "../components/Copy";
 import Promo from "../components/Promo";
 import Grafica from "../components/Grafica";
 import Report from "../components/Report";
+import Shooting from "../components/Shooting";
 
 const EXTERNAL = {
   foto: "https://foto-studio-miglioriamo.netlify.app",
@@ -150,7 +151,7 @@ export default function Home() {
               <Tool icon="🎨" t="Grafica" d="Copertine e visual col brand del cliente" mod="grafica" active={activeModule} onSelect={setActiveModule} />
               <Tool icon="📊" t="Report" d="Andamento dai numeri di Business Suite" mod="report" active={activeModule} onSelect={setActiveModule} />
               <Tool icon="📸" t="Foto Studio ↗" d="Migliora le foto grezze per i social" href={EXTERNAL.foto} />
-              <Tool icon="🎬" t="Idee Shooting ↗" d="Idee di scatto + brief PDF" href={EXTERNAL.shooting} />
+              <Tool icon="🎬" t="Idee Shooting" d="Copioni pronti da girare, dal contesto del cliente" mod="shooting" active={activeModule} onSelect={setActiveModule} />
             </div>
 
             <div ref={modRef} style={{ scrollMarginTop: 76 }}>
@@ -158,6 +159,7 @@ export default function Home() {
               {activeModule === "promo" && <Promo clientName={current} />}
               {activeModule === "grafica" && <Grafica clientName={current} />}
               {activeModule === "report" && <Report clientName={current} />}
+              {activeModule === "shooting" && <Shooting clientName={current} />}
             </div>
 
             {!activeModule && <Lavori dati={lavori} cliente={current} />}
