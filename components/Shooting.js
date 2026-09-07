@@ -18,6 +18,7 @@ export default function Shooting({ clientName }) {
   const [errore, setErrore] = useState("");
   const [rigenero, setRigenero] = useState(null); // indice in rigenerazione
   const [nota, setNota] = useState({});           // note per singolo copione
+  const [pdf, setPdf] = useState(null);           // {stato, percorso, motivo}
 
   async function genera() {
     setFase("lavoro"); setErrore("");
@@ -60,6 +61,35 @@ export default function Shooting({ clientName }) {
       setErrore(String(e && e.message ? e.message : e));
     } finally {
       setRigenero(null);
+    }
+  }
+
+  // Il PDF si fa solo alla fine, sui copioni come sono adesso: comprese le
+  // modifiche fatte a mano e i copioni rifatti uno per volta.
+  async function pdfCopioni(archivia) {
+    setPdf({ stato: "lavoro" });
+    try {
+      const res = await fetch("/api/shooting-pdf", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ cliente: clientName, mese, obiettivo, copioni, archivia }),
+      });
+      if (archivia) {
+        const d = await res.json();
+        if (!res.ok || !d.ok) throw new Error(d.motivo || "archiviazione non riuscita");
+        setPdf({ stato: "archiviato", percorso: d.percorso });
+        return;
+      }
+      if (!res.ok) throw new Error("non riesco a comporre il PDF");
+      const url = URL.createObjectURL(await res.blob());
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = `Copioni ${clientName} ${mese}.pdf`;
+      document.body.appendChild(a); a.click(); a.remove();
+      setTimeout(() => URL.revokeObjectURL(url), 4000);
+      setPdf(null);
+    } catch (e) {
+      setPdf({ stato: "errore", motivo: String(e && e.message ? e.message : e) });
     }
   }
 
@@ -162,7 +192,17 @@ export default function Shooting({ clientName }) {
           <div className="modBtns">
             <button className="btn" onClick={() => setFase("form")}>← Cambia impostazioni</button>
             <button className="btn" onClick={genera} disabled={rigenero !== null}>↻ Rifai tutti</button>
+            <button className="btn primary" onClick={() => pdfCopioni(false)} disabled={pdf?.stato === "lavoro"}>
+              {pdf?.stato === "lavoro" ? "Preparo…" : "📄 Scarica il PDF"}
+            </button>
+            <button className="btn" onClick={() => pdfCopioni(true)} disabled={pdf?.stato === "lavoro"}>
+              🗂️ Archivia nella cartella del cliente
+            </button>
           </div>
+          {pdf?.stato === "archiviato" ? (
+            <div className="empty">✅ Archiviato in <b>{pdf.percorso}</b></div>
+          ) : null}
+          {pdf?.stato === "errore" ? <div className="empty">⚠️ {pdf.motivo}</div> : null}
         </>
       )}
     </div>
