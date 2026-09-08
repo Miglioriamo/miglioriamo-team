@@ -166,26 +166,9 @@ export async function POST(request) {
   let foto = files.filter((e) => FOTO.test(e.name) || RAW.test(e.name));
   let video = files.filter((e) => VIDEO.test(e.name));
 
-  // La memoria del cliente: i contenuti già consegnati si saltano, così ogni
-  // giro lavora solo il materiale nuovo invece di rifare sempre i primi quattro.
-  let saltati = 0;
-  if (!body.rifaiTutti) {
-    try {
-      const indice = await leggiIndice(name);
-      const fatti = new Set(
-        (indice.contenuti || [])
-          .filter((x) => (x.cartella || "").toLowerCase() === folder.toLowerCase())
-          .map((x) => String(x.file).toLowerCase())
-      );
-      if (fatti.size) {
-        const prima = foto.length + video.length;
-        foto = foto.filter((f) => !fatti.has(f.name.toLowerCase()));
-        video = video.filter((v) => !fatti.has(v.name.toLowerCase()));
-        saltati = prima - (foto.length + video.length);
-      }
-    } catch {}
-  }
-
+  // Attenzione all'ordine: prima si guarda se la cartella ha materiale, e solo
+  // dopo si tolgono i già fatti. Al contrario, una cartella tutta lavorata
+  // sembrerebbe vuota e l'app manderebbe l'utente a cercare altrove.
   if (!foto.length && !video.length) {
     // Le cartelle di shooting tengono i contenuti dentro le sottocartelle
     // ("Carosello 4", "Reel 4"…): invece di rimandare l'utente su Dropbox,
@@ -216,6 +199,34 @@ export async function POST(request) {
           (dirs.length ? " Controlla di aver preso la cartella giusta." : ""),
     });
   }
+
+  // La memoria del cliente: i contenuti già consegnati si saltano, così ogni
+  // giro lavora solo il materiale nuovo invece di rifare sempre i primi quattro.
+  let saltati = 0;
+  if (!body.rifaiTutti) {
+    try {
+      const indice = await leggiIndice(name);
+      const fatti = new Set(
+        (indice.contenuti || [])
+          .filter((x) => (x.cartella || "").toLowerCase() === folder.toLowerCase())
+          .map((x) => String(x.file).toLowerCase())
+      );
+      if (fatti.size) {
+        const prima = foto.length + video.length;
+        foto = foto.filter((f) => !fatti.has(f.name.toLowerCase()));
+        video = video.filter((v) => !fatti.has(v.name.toLowerCase()));
+        saltati = prima - (foto.length + video.length);
+      }
+    } catch {}
+  }
+
+  if (!foto.length && !video.length)
+    return Response.json({
+      captions: [],
+      folder,
+      saltati,
+      note: `Tutti i ${saltati} contenuti di questa cartella hanno gia' un copy archiviato. Se vuoi rifarli, spunta "rifai anche i contenuti gia' fatti".`,
+    });
 
   // `skip` permette di riprendere da dove si era arrivati: una cartella con 19
   // scatti si smaltisce in più giri invece di rigenerare sempre i primi quattro.
