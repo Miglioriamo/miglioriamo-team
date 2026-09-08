@@ -1,13 +1,14 @@
 import {
   listFolder,
-  downloadText,
   getTemporaryLink,
   getThumbnailBase64,
   resolveTarget,
   friendlyError,
 } from "../../../lib/dropbox";
 import { extractFrames } from "../../../lib/video";
-import { generateCaption, hasKey } from "../../../lib/anthropic";
+import { scriviDidascalia, hasKey } from "../../../lib/anthropic";
+import { leggiFascicolo } from "../../../lib/fascicolo";
+import { nomeUtile, cartellaUtile } from "../../../lib/nomi";
 
 export const dynamic = "force-dynamic";
 export const maxDuration = 60;
@@ -22,21 +23,6 @@ const MAX_FOTO = 4;
 const MAX_VIDEO = 3; // più lenti delle foto: ffmpeg deve cercare dentro il file
 const MAX_SUBFOLDERS = 24; // quante sottocartelle ispezionare quando la cartella è "vuota"
 const FRAMES = 3;
-
-async function readDossier(clientPath) {
-  const children = await listFolder(clientPath);
-  if (!children) return null;
-  const gen = children.find((e) => e[".tag"] === "folder" && /contesto\s*-?\s*generico/i.test(e.name));
-  if (!gen) return null;
-  const gc = (await listFolder(`${clientPath}/${gen.name}`)) || [];
-  const md = gc.find((e) => e[".tag"] === "file" && /\.md$/i.test(e.name));
-  if (!md) return null;
-  try {
-    return await downloadText(`${clientPath}/${gen.name}/${md.name}`);
-  } catch {
-    return null;
-  }
-}
 
 /** Una foto (o un RAW): l'anteprima di Dropbox è già quello che serve a Claude. */
 async function fromPhoto(full) {
@@ -66,11 +52,20 @@ async function fromVideo(full) {
 }
 
 /** Guarda un contenuto e ne scrive la didascalia; gli errori restano nella scheda. */
-async function scriviCaption(full, file, estrai, clientName, dossier) {
+async function scriviCaption(full, file, estrai, clientName, fascicolo, indiziBase) {
   try {
     const { images, preview, kind, seconds, shots } = await estrai(full);
-    const caption = await generateCaption({ clientName, dossier, images, kind });
-    return { name: file.name, kind, seconds, shots, preview: `data:image/jpeg;base64,${preview}`, caption };
+    // Il nome del file è informazione gratuita, ma solo se dice qualcosa:
+    // "IMG_4471" non aiuta, "Banana split con panna" sì.
+    const indizi = { ...indiziBase, nomeFile: nomeUtile(file.name) };
+    const { caption, registro, motivo } = await scriviDidascalia({
+      clientName, fascicolo, images, kind, indizi,
+    });
+    return {
+      name: file.name, kind, seconds, shots,
+      preview: `data:image/jpeg;base64,${preview}`,
+      caption, registro, motivo,
+    };
   } catch (e) {
     return {
       name: file.name,
@@ -87,7 +82,7 @@ export async function POST(request) {
 
   let body = {};
   try { body = await request.json(); } catch {}
-  const { name, path, skip } = body;
+  const { name, path, skip, commento } = body;
   const da = { foto: Math.max(0, Number(skip?.foto) || 0), video: Math.max(0, Number(skip?.video) || 0) };
   if (!name || !path) return Response.json({ error: "Manca il cliente o la cartella." });
 
@@ -100,11 +95,14 @@ export async function POST(request) {
   }
   const folder = target.kind === "file" ? target.path.replace(/\/[^/]*$/, "") : target.path;
 
-  const base = process.env.DROPBOX_CONTEXTS_PATH || "/MIGLIORIAMO/CLAUDE/Contesto cliente";
-  let dossier = null;
+  let fascicolo = {};
   try {
-    dossier = await readDossier(`${base}/${name}`);
+    fascicolo = (await leggiFascicolo(name)) || {};
   } catch {}
+  const dossier = Boolean(fascicolo.dossier);
+  // Il commento dell'operatore vale per tutto il gruppo: trenta secondi di
+  // appunti coprono venti contenuti.
+  const indiziBase = { commento: (commento || "").trim() || null, nomeCartella: cartellaUtile(folder) };
 
   // Un singolo file (tipico: il link di un video preso da Dropbox).
   if (target.kind === "file") {
@@ -115,8 +113,8 @@ export async function POST(request) {
         error: `Questo file non è una foto né un video (${file.name}). Incolla il link di una foto, di un video o della cartella che li contiene.`,
         folder: target.path,
       });
-    const solo = await scriviCaption(target.path, file, isVideo ? fromVideo : fromPhoto, name, dossier);
-    return Response.json({ captions: [solo], folder: target.path, dossier: Boolean(dossier) });
+    const solo = await scriviCaption(target.path, file, isVideo ? fromVideo : fromPhoto, name, fascicolo, indiziBase);
+    return Response.json({ captions: [solo], folder: target.path, dossier, fascicolo: stato(fascicolo) });
   }
 
   let entries;
@@ -174,7 +172,7 @@ export async function POST(request) {
       note: "Hai già generato le didascalie per tutti i contenuti di questa cartella.",
     });
 
-  const scrivi = (file, estrai) => scriviCaption(`${folder}/${file.name}`, file, estrai, name, dossier);
+  const scrivi = (file, estrai) => scriviCaption(`${folder}/${file.name}`, file, estrai, name, fascicolo, indiziBase);
 
   try {
     // Le foto sono leggere: tutte insieme. I video no: uno per volta, per non
@@ -191,7 +189,8 @@ export async function POST(request) {
     return Response.json({
       captions: [...daFoto, ...daVideo],
       folder,
-      dossier: Boolean(dossier),
+      dossier,
+      fascicolo: stato(fascicolo),
       next: restano.length ? next : undefined,
       restano: restano.length ? restano.join(" e ") : undefined,
       note: restano.length
@@ -201,4 +200,14 @@ export async function POST(request) {
   } catch (e) {
     return Response.json({ error: friendlyError(e), folder });
   }
+}
+
+// Cosa c'era nel fascicolo: serve a spiegare perché un copy è uscito generico.
+function stato(f) {
+  return {
+    dossier: Boolean(f.dossier),
+    dati: Boolean(f.dati),
+    cta: Boolean(f.cta),
+    paletti: Boolean(f.paletti),
+  };
 }
