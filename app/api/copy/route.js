@@ -9,6 +9,7 @@ import { extractFrames } from "../../../lib/video";
 import { scriviDidascalia, hasKey } from "../../../lib/anthropic";
 import { leggiFascicolo } from "../../../lib/fascicolo";
 import { nomeUtile, cartellaUtile } from "../../../lib/nomi";
+import { salvaOutput, aggiornaIndice, leggiIndice, scritturaAttiva } from "../../../lib/scrittura";
 
 export const dynamic = "force-dynamic";
 export const maxDuration = 60;
@@ -76,7 +77,43 @@ async function scriviCaption(full, file, estrai, clientName, fascicolo, indiziBa
   }
 }
 
+/** Il report dei copy, come lo legge una persona. */
+function reportCopy(cliente, cartella, captions) {
+  const oggi = new Date().toLocaleDateString("it-IT", { day: "numeric", month: "long", year: "numeric" });
+  const righe = [`# Copy — ${cliente}`, "", `Cartella: ${cartella}`, `Generati il ${oggi}`, ""];
+  captions.forEach((c, i) => {
+    righe.push(`## ${i + 1}. ${c.name}`);
+    if (c.registro) righe.push(`_${c.registro}${c.motivo ? " — " + c.motivo : ""}_`, "");
+    righe.push(c.caption || "", "");
+  });
+  return righe.join("\n");
+}
+
 export async function POST(request) {
+  // Archiviazione: arriva dopo, quando chi lavora ha riletto e approvato.
+  // Solo allora i contenuti entrano nella memoria del "già fatto".
+  try {
+    const body = await request.clone().json();
+    if (body && body.archivia) {
+      if (!scritturaAttiva())
+        return Response.json({ ok: false, motivo: "L'archiviazione non è attiva su questo indirizzo." }, { status: 503 });
+      const captions = (body.captions || []).filter((c) => c && c.caption && !String(c.caption).startsWith("⚠️"));
+      if (!captions.length) return Response.json({ ok: false, motivo: "Non c'è niente da archiviare." }, { status: 400 });
+      const cartella = body.folder || "";
+      const nomeFile = `Copy ${new Date().toISOString().slice(0, 10)} ${cartella.split("/").filter(Boolean).pop() || ""}`.trim() + ".md";
+      const salvato = await salvaOutput({
+        cliente: body.name, tipo: "copy", nomeFile,
+        contenuto: reportCopy(body.name, cartella, captions),
+      });
+      const quanti = await aggiornaIndice(body.name, captions.map((c) => ({
+        file: c.name, cartella, quando: new Date().toISOString(), registro: c.registro || null,
+      })));
+      return Response.json({ ok: true, percorso: salvato.percorso, inMemoria: quanti });
+    }
+  } catch (e) {
+    return Response.json({ ok: false, motivo: String(e && e.message ? e.message : e) }, { status: 502 });
+  }
+
   if (!hasKey())
     return Response.json({ error: "no_key", message: "Chiave Claude API non configurata (ANTHROPIC_API_KEY su Vercel)." });
 
@@ -126,8 +163,28 @@ export async function POST(request) {
   if (!entries) return Response.json({ error: "Dropbox non raggiungibile." });
 
   const files = entries.filter((e) => e[".tag"] === "file");
-  const foto = files.filter((e) => FOTO.test(e.name) || RAW.test(e.name));
-  const video = files.filter((e) => VIDEO.test(e.name));
+  let foto = files.filter((e) => FOTO.test(e.name) || RAW.test(e.name));
+  let video = files.filter((e) => VIDEO.test(e.name));
+
+  // La memoria del cliente: i contenuti già consegnati si saltano, così ogni
+  // giro lavora solo il materiale nuovo invece di rifare sempre i primi quattro.
+  let saltati = 0;
+  if (!body.rifaiTutti) {
+    try {
+      const indice = await leggiIndice(name);
+      const fatti = new Set(
+        (indice.contenuti || [])
+          .filter((x) => (x.cartella || "").toLowerCase() === folder.toLowerCase())
+          .map((x) => String(x.file).toLowerCase())
+      );
+      if (fatti.size) {
+        const prima = foto.length + video.length;
+        foto = foto.filter((f) => !fatti.has(f.name.toLowerCase()));
+        video = video.filter((v) => !fatti.has(v.name.toLowerCase()));
+        saltati = prima - (foto.length + video.length);
+      }
+    } catch {}
+  }
 
   if (!foto.length && !video.length) {
     // Le cartelle di shooting tengono i contenuti dentro le sottocartelle
@@ -169,7 +226,10 @@ export async function POST(request) {
     return Response.json({
       captions: [],
       folder,
-      note: "Hai già generato le didascalie per tutti i contenuti di questa cartella.",
+      saltati,
+      note: saltati
+        ? `Tutti i ${saltati} contenuti di questa cartella hanno già un copy archiviato. Se vuoi rifarli, usa "rifai anche i già fatti".`
+        : "Hai già generato le didascalie per tutti i contenuti di questa cartella.",
     });
 
   const scrivi = (file, estrai) => scriviCaption(`${folder}/${file.name}`, file, estrai, name, fascicolo, indiziBase);
@@ -190,6 +250,7 @@ export async function POST(request) {
       captions: [...daFoto, ...daVideo],
       folder,
       dossier,
+      saltati,
       fascicolo: stato(fascicolo),
       next: restano.length ? next : undefined,
       restano: restano.length ? restano.join(" e ") : undefined,

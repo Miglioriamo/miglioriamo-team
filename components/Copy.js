@@ -38,6 +38,8 @@ export default function Copy({ clientName }) {
   const [loading, setLoading] = useState(false);
   const [result, setResult] = useState(null);
   const [commento, setCommento] = useState("");
+  const [rifaiTutti, setRifaiTutti] = useState(false);
+  const [archivio, setArchivio] = useState(null);
 
   const generate = (target, skip) => {
     const wanted = (typeof target === "string" ? target : path).trim();
@@ -48,13 +50,33 @@ export default function Copy({ clientName }) {
     fetch("/api/copy", {
       method: "POST",
       headers: { "content-type": "application/json" },
-      body: JSON.stringify({ name: clientName, path: wanted, skip, commento }),
+      body: JSON.stringify({ name: clientName, path: wanted, skip, commento, rifaiTutti }),
     })
       .then((r) => r.json())
       .then((d) => setResult(d))
       .catch((e) => setResult({ error: String(e) }))
       .finally(() => setLoading(false));
   };
+
+  // Si archivia solo dopo aver riletto: da quel momento i contenuti entrano
+  // nella memoria del cliente e ai giri successivi non vengono rifatti.
+  async function archivia() {
+    setArchivio({ stato: "lavoro" });
+    try {
+      const res = await fetch("/api/copy", {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({
+          archivia: true, name: clientName, folder: result.folder, captions: result.captions,
+        }),
+      });
+      const d = await res.json();
+      if (!res.ok || !d.ok) throw new Error(d.motivo || "archiviazione non riuscita");
+      setArchivio({ stato: "fatto", percorso: d.percorso, inMemoria: d.inMemoria });
+    } catch (e) {
+      setArchivio({ stato: "errore", motivo: String(e && e.message ? e.message : e) });
+    }
+  }
 
   const copyText = (t, btn) => {
     if (navigator.clipboard) navigator.clipboard.writeText(t);
@@ -96,10 +118,14 @@ export default function Copy({ clientName }) {
           Trenta secondi di appunti coprono tutte le foto del gruppo. Se scrivi cosa sono,
           le didascalie escono <b>specifiche</b> invece che generiche.
         </p>
-        <div style={{ marginTop: 14 }}>
+        <div style={{ marginTop: 14, display: "flex", gap: 8, alignItems: "center", flexWrap: "wrap" }}>
           <button className="btn primary" onClick={() => generate()} disabled={loading}>
             {loading ? "Genero… (Claude sta guardando i contenuti)" : "Genera copy →"}
           </button>
+          <label className="rifai">
+            <input type="checkbox" checked={rifaiTutti} onChange={(e) => setRifaiTutti(e.target.checked)} />
+            rifai anche i contenuti già fatti
+          </label>
         </div>
       </div>
 
@@ -135,11 +161,28 @@ export default function Copy({ clientName }) {
         </div>
       )}
       {result && result.folder && !result.error && (
-        <p className="hint" style={{ marginTop: 10 }}>Cartella letta: <b>{result.folder}</b></p>
+        <p className="hint" style={{ marginTop: 10 }}>
+          Cartella letta: <b>{result.folder}</b>
+          {result.saltati ? ` · ${result.saltati} contenuti saltati perché già fatti` : ""}
+        </p>
       )}
       {result && result.captions && result.captions.length > 0 && (
         <Riepilogo captions={result.captions} fascicolo={result.fascicolo} />
       )}
+      {result && result.captions && result.captions.length > 0 && (
+        <div className="modBtns">
+          <button className="btn primary" onClick={archivia} disabled={archivio?.stato === "lavoro"}>
+            {archivio?.stato === "lavoro" ? "Archivio…" : "🗂️ Archivia e segna come fatti"}
+          </button>
+        </div>
+      )}
+      {archivio?.stato === "fatto" ? (
+        <div className="empty">
+          ✅ Archiviato in <b>{archivio.percorso}</b> · in memoria ora ci sono {archivio.inMemoria} contenuti:
+          ai prossimi giri questi non verranno rifatti.
+        </div>
+      ) : null}
+      {archivio?.stato === "errore" ? <div className="empty">⚠️ {archivio.motivo}</div> : null}
       {result && result.captions && result.captions.map((c, i) => (
         <div className="post" key={i}>
           <div className="thumb">
