@@ -225,7 +225,11 @@ export async function POST(request) {
       captions: [],
       folder,
       saltati,
-      note: `Tutti i ${saltati} contenuti di questa cartella hanno gia' un copy archiviato. Se vuoi rifarli, spunta "rifai anche i contenuti gia' fatti".`,
+      note:
+        (saltati === 1
+          ? "L'unico contenuto di questa cartella ha già un copy archiviato."
+          : `Tutti i ${saltati} contenuti di questa cartella hanno già un copy archiviato.`) +
+        ' Se vuoi rifarli, spunta "rifai anche i contenuti già fatti".',
     });
 
   // `skip` permette di riprendere da dove si era arrivati: una cartella con 19
@@ -239,7 +243,7 @@ export async function POST(request) {
       folder,
       saltati,
       note: saltati
-        ? `Tutti i ${saltati} contenuti di questa cartella hanno già un copy archiviato. Se vuoi rifarli, usa "rifai anche i già fatti".`
+        ? `Non è rimasto niente da fare: ${saltati === 1 ? "l'unico contenuto ha" : `tutti i ${saltati} contenuti hanno`} già un copy archiviato.`
         : "Hai già generato le didascalie per tutti i contenuti di questa cartella.",
     });
 
