@@ -59,13 +59,13 @@ async function scriviCaption(full, file, estrai, clientName, fascicolo, indiziBa
     // Il nome del file è informazione gratuita, ma solo se dice qualcosa:
     // "IMG_4471" non aiuta, "Banana split con panna" sì.
     const indizi = { ...indiziBase, nomeFile: nomeUtile(file.name) };
-    const { caption, registro, motivo } = await scriviDidascalia({
+    const { caption, registro, motivo, grezzo, fine } = await scriviDidascalia({
       clientName, fascicolo, images, kind, indizi,
     });
     return {
       name: file.name, kind, seconds, shots,
       preview: `data:image/jpeg;base64,${preview}`,
-      caption, registro, motivo,
+      caption, registro, motivo, grezzo, fine,
     };
   } catch (e) {
     return {
