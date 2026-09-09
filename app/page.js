@@ -172,7 +172,10 @@ export default function Home() {
   );
 }
 
-const ETICHETTE = { copy: "Copy", grafica: "Grafica", report: "Report", shooting: "Idee shooting", promo: "Promo" };
+const ETICHETTE = {
+  copy: "Copy", grafica: "Grafica", "report-profili": "Report profili",
+  report: "Report", shooting: "Idee shooting", promo: "Promo",
+};
 const MESI = ["gennaio","febbraio","marzo","aprile","maggio","giugno","luglio","agosto","settembre","ottobre","novembre","dicembre"];
 function meseEsteso(m) {
   const x = /^(\d{4})-(\d{2})$/.exec(m || "");

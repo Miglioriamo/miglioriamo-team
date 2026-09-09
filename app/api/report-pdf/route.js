@@ -272,7 +272,7 @@ export async function POST(request) {
     try {
       const salvato = await salvaOutput({
         cliente: d.cliente,
-        tipo: "report",
+        tipo: "report-profili",
         nomeFile,
         contenuto: Buffer.from(bytes),
         mese: meseDaPeriodo(periodo),
