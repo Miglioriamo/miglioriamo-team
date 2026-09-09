@@ -5,6 +5,7 @@ import Copy from "../components/Copy";
 import Promo from "../components/Promo";
 import Grafica from "../components/Grafica";
 import Report from "../components/Report";
+import Shooting from "../components/Shooting";
 
 const EXTERNAL = {
   foto: "https://foto-studio-miglioriamo.netlify.app",
@@ -19,6 +20,7 @@ export default function Home() {
   const [detail, setDetail] = useState(null);
   const [detailLoading, setDetailLoading] = useState(false);
   const [activeModule, setActiveModule] = useState(null);
+  const [lavori, setLavori] = useState(null);
   const [q, setQ] = useState(""); // filtro sull'elenco clienti
   const [menu, setMenu] = useState(false); // su cellulare l'elenco parte chiuso
   const modRef = useRef(null);
@@ -52,6 +54,13 @@ export default function Home() {
       .then((d) => setDetail(d))
       .catch(() => setDetail(null))
       .finally(() => setDetailLoading(false));
+
+    // Cosa abbiamo già prodotto per questo cliente (legge output/ su Dropbox).
+    setLavori(null);
+    fetch(`/api/lavori?name=${encodeURIComponent(current)}`)
+      .then((r) => r.json())
+      .then((d) => setLavori(d.lavori ? d : { lavori: [], totale: 0 }))
+      .catch(() => setLavori({ lavori: [], totale: 0 }));
   }, [current]);
 
   const visibili = q.trim()
@@ -122,7 +131,11 @@ export default function Home() {
           <>
             <div className="chead">
               <div className="cheadTop">
-                <div className="avatar">{current[0]}</div>
+                {detail?.have?.logo ? (
+                  <img className="avatar avatarImg" src={`/api/logo?name=${encodeURIComponent(current)}`} alt="" />
+                ) : (
+                  <div className="avatar">{current[0]}</div>
+                )}
                 <div>
                   <div className="ctitle">{current}</div>
                   <div className="cmeta">Cliente · contesto letto da Dropbox</div>
@@ -138,7 +151,7 @@ export default function Home() {
               <Tool icon="🎨" t="Grafica" d="Copertine e visual col brand del cliente" mod="grafica" active={activeModule} onSelect={setActiveModule} />
               <Tool icon="📊" t="Report" d="Andamento dai numeri di Business Suite" mod="report" active={activeModule} onSelect={setActiveModule} />
               <Tool icon="📸" t="Foto Studio ↗" d="Migliora le foto grezze per i social" href={EXTERNAL.foto} />
-              <Tool icon="🎬" t="Idee Shooting ↗" d="Idee di scatto + brief PDF" href={EXTERNAL.shooting} />
+              <Tool icon="🎬" t="Idee Shooting" d="Copioni pronti da girare, dal contesto del cliente" mod="shooting" active={activeModule} onSelect={setActiveModule} />
             </div>
 
             <div ref={modRef} style={{ scrollMarginTop: 76 }}>
@@ -146,16 +159,63 @@ export default function Home() {
               {activeModule === "promo" && <Promo clientName={current} />}
               {activeModule === "grafica" && <Grafica clientName={current} />}
               {activeModule === "report" && <Report clientName={current} />}
+              {activeModule === "shooting" && <Shooting clientName={current} />}
             </div>
 
-            {!activeModule && (
-              <p className="note">Scegli uno strumento qui sopra. Il contesto del cliente è già caricato da Dropbox.</p>
-            )}
+            {!activeModule && <Lavori dati={lavori} cliente={current} />}
           </>
         ) : (
           <p className="note">Nessun cliente trovato.</p>
         )}
       </main>
+    </div>
+  );
+}
+
+const ETICHETTE = {
+  copy: "Copy", grafica: "Grafica", "report-profili": "Report profili",
+  report: "Report", shooting: "Idee shooting", promo: "Promo",
+};
+const MESI = ["gennaio","febbraio","marzo","aprile","maggio","giugno","luglio","agosto","settembre","ottobre","novembre","dicembre"];
+function meseEsteso(m) {
+  const x = /^(\d{4})-(\d{2})$/.exec(m || "");
+  return x ? `${MESI[+x[2] - 1]} ${x[1]}` : m;
+}
+
+/** Cosa abbiamo consegnato a questo cliente: prima era spazio vuoto. */
+function Lavori({ dati, cliente }) {
+  if (dati === null) return <p className="note">Guardo cosa abbiamo già fatto per {cliente}…</p>;
+
+  if (!dati.totale)
+    return (
+      <div className="lavori vuoto">
+        <div className="lavTitolo">Ancora nessun lavoro archiviato</div>
+        <p className="note">
+          Quello che generi qui sopra finisce nella cartella Dropbox di {cliente} e da quel momento
+          compare in questo elenco: è lo storico di cosa gli avete consegnato.
+        </p>
+      </div>
+    );
+
+  return (
+    <div className="lavori">
+      <div className="lavHead">
+        <div className="lavTitolo">Cosa abbiamo prodotto</div>
+        <div className="lavConta">
+          {Object.entries(dati.conteggi || {}).map(([t, n]) => (
+            <span key={t} className="lavChip">{ETICHETTE[t] || t} · {n}</span>
+          ))}
+        </div>
+      </div>
+      <ul className="lavLista">
+        {dati.lavori.map((l, i) => (
+          <li key={i}>
+            <span className="lavTipo">{ETICHETTE[l.tipo] || l.tipo}</span>
+            <span className="lavNome">{l.nome}</span>
+            <span className="lavMese">{meseEsteso(l.mese)}</span>
+          </li>
+        ))}
+      </ul>
     </div>
   );
 }

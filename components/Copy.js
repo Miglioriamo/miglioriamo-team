@@ -2,10 +2,44 @@
 
 import { useState } from "react";
 
+const ETICHETTA = { specifico: "specifico", categoria: "categoria", generico: "generico" };
+
+/** Quanti copy sono usciti precisi, e se non lo sono, perché. */
+function Riepilogo({ captions, fascicolo }) {
+  const conta = { specifico: 0, categoria: 0, generico: 0 };
+  captions.forEach((c) => { if (c.registro) conta[c.registro] = (conta[c.registro] || 0) + 1; });
+  const totale = conta.specifico + conta.categoria + conta.generico;
+  if (!totale) return null;
+  const manca = [];
+  if (fascicolo && !fascicolo.dati) manca.push("i dati operativi");
+  if (fascicolo && !fascicolo.cta) manca.push("le CTA");
+  if (fascicolo && !fascicolo.paletti) manca.push("i paletti");
+
+  return (
+    <div className="riep">
+      <div className="riepConta">
+        <span className="regTag reg-specifico">{conta.specifico} specifici</span>
+        <span className="regTag reg-categoria">{conta.categoria} di categoria</span>
+        <span className="regTag reg-generico">{conta.generico} generici</span>
+      </div>
+      {conta.specifico < totale ? (
+        <p className="hint">
+          I copy non specifici escono così quando manca l&apos;informazione su cosa sia il contenuto:
+          scrivi due parole nel campo qui sopra, o rinomina i file su Dropbox.
+          {manca.length ? ` Nel fascicolo di questo cliente mancano ${manca.join(", ")}.` : ""}
+        </p>
+      ) : null}
+    </div>
+  );
+}
+
 export default function Copy({ clientName }) {
   const [path, setPath] = useState("");
   const [loading, setLoading] = useState(false);
   const [result, setResult] = useState(null);
+  const [commento, setCommento] = useState("");
+  const [rifaiTutti, setRifaiTutti] = useState(false);
+  const [archivio, setArchivio] = useState(null);
 
   const generate = (target, skip) => {
     const wanted = (typeof target === "string" ? target : path).trim();
@@ -16,13 +50,33 @@ export default function Copy({ clientName }) {
     fetch("/api/copy", {
       method: "POST",
       headers: { "content-type": "application/json" },
-      body: JSON.stringify({ name: clientName, path: wanted, skip }),
+      body: JSON.stringify({ name: clientName, path: wanted, skip, commento, rifaiTutti }),
     })
       .then((r) => r.json())
       .then((d) => setResult(d))
       .catch((e) => setResult({ error: String(e) }))
       .finally(() => setLoading(false));
   };
+
+  // Si archivia solo dopo aver riletto: da quel momento i contenuti entrano
+  // nella memoria del cliente e ai giri successivi non vengono rifatti.
+  async function archivia() {
+    setArchivio({ stato: "lavoro" });
+    try {
+      const res = await fetch("/api/copy", {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({
+          archivia: true, name: clientName, folder: result.folder, captions: result.captions,
+        }),
+      });
+      const d = await res.json();
+      if (!res.ok || !d.ok) throw new Error(d.motivo || "archiviazione non riuscita");
+      setArchivio({ stato: "fatto", percorso: d.percorso, inMemoria: d.inMemoria });
+    } catch (e) {
+      setArchivio({ stato: "errore", motivo: String(e && e.message ? e.message : e) });
+    }
+  }
 
   const copyText = (t, btn) => {
     if (navigator.clipboard) navigator.clipboard.writeText(t);
@@ -54,10 +108,24 @@ export default function Copy({ clientName }) {
           Legge <b>foto</b> (jpg, png, heic), <b>RAW</b> di macchina fotografica (arw, cr2, nef…)
           e <b>video</b>, di cui guarda tre momenti: inizio, metà e finale.
         </p>
-        <div style={{ marginTop: 14 }}>
+        <label style={{ marginTop: 16 }}>🗣️ Cosa c&apos;è in questi contenuti (facoltativo, ma cambia tutto)</label>
+        <input
+          value={commento}
+          onChange={(e) => setCommento(e.target.value)}
+          placeholder="shooting coppe estive: banana split, coppa amarena, affogato"
+        />
+        <p className="hint">
+          Trenta secondi di appunti coprono tutte le foto del gruppo. Se scrivi cosa sono,
+          le didascalie escono <b>specifiche</b> invece che generiche.
+        </p>
+        <div style={{ marginTop: 14, display: "flex", gap: 8, alignItems: "center", flexWrap: "wrap" }}>
           <button className="btn primary" onClick={() => generate()} disabled={loading}>
             {loading ? "Genero… (Claude sta guardando i contenuti)" : "Genera copy →"}
           </button>
+          <label className="rifai">
+            <input type="checkbox" checked={rifaiTutti} onChange={(e) => setRifaiTutti(e.target.checked)} />
+            rifai anche i contenuti già fatti
+          </label>
         </div>
       </div>
 
@@ -93,8 +161,28 @@ export default function Copy({ clientName }) {
         </div>
       )}
       {result && result.folder && !result.error && (
-        <p className="hint" style={{ marginTop: 10 }}>Cartella letta: <b>{result.folder}</b></p>
+        <p className="hint" style={{ marginTop: 10 }}>
+          Cartella letta: <b>{result.folder}</b>
+          {result.saltati ? ` · ${result.saltati} contenuti saltati perché già fatti` : ""}
+        </p>
       )}
+      {result && result.captions && result.captions.length > 0 && (
+        <Riepilogo captions={result.captions} fascicolo={result.fascicolo} />
+      )}
+      {result && result.captions && result.captions.length > 0 && (
+        <div className="modBtns">
+          <button className="btn primary" onClick={archivia} disabled={archivio?.stato === "lavoro"}>
+            {archivio?.stato === "lavoro" ? "Archivio…" : "🗂️ Archivia e segna come fatti"}
+          </button>
+        </div>
+      )}
+      {archivio?.stato === "fatto" ? (
+        <div className="empty">
+          ✅ Archiviato in <b>{archivio.percorso}</b> · in memoria ora ci sono {archivio.inMemoria} contenuti:
+          ai prossimi giri questi non verranno rifatti.
+        </div>
+      ) : null}
+      {archivio?.stato === "errore" ? <div className="empty">⚠️ {archivio.motivo}</div> : null}
       {result && result.captions && result.captions.map((c, i) => (
         <div className="post" key={i}>
           <div className="thumb">
@@ -105,6 +193,12 @@ export default function Copy({ clientName }) {
             </span>
           </div>
           <div>
+            {c.registro ? (
+              <div className="reg">
+                <span className={"regTag reg-" + c.registro}>{ETICHETTA[c.registro] || c.registro}</span>
+                {c.motivo ? <span className="regMot">{c.motivo}</span> : null}
+              </div>
+            ) : null}
             <div className="cap">{c.caption}</div>
             <button className="copybtn" onClick={(e) => copyText(c.caption, e)}>⧉ Copia didascalia</button>
           </div>

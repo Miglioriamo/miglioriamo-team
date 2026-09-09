@@ -23,6 +23,7 @@ export default function Report({ clientName }) {
   const [fase, setFase] = useState("form");       // form | scrivo | pronto
   const [avviso, setAvviso] = useState("");
   const [scarico, setScarico] = useState(false);
+  const [archivio, setArchivio] = useState(null); // {stato, percorso, motivo}
   const set = (k) => (e) => setM({ ...m, [k]: e.target.value });
 
   async function generaTesto() {
@@ -45,6 +46,23 @@ export default function Report({ clientName }) {
       setAvviso(`Testo non riscritto (${String(e.message || e)}). Sono rimasti i tuoi appunti: correggili a mano.`);
     } finally {
       setFase("pronto");
+    }
+  }
+
+  // Archivia il PDF nella cartella Dropbox del cliente, in output/report/AAAA-MM.
+  async function archiviaSuDropbox() {
+    setArchivio({ stato: "lavoro" });
+    try {
+      const res = await fetch("/api/report-pdf", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ cliente: clientName, ...m, racconto, passo: conProposta ? proposta : "", archivia: true }),
+      });
+      const d = await res.json();
+      if (!res.ok || !d.ok) throw new Error(d.motivo || "archiviazione non riuscita");
+      setArchivio({ stato: "fatto", percorso: d.percorso, link: d.link });
+    } catch (e) {
+      setArchivio({ stato: "errore", motivo: String(e && e.message ? e.message : e) });
     }
   }
 
@@ -162,7 +180,17 @@ export default function Report({ clientName }) {
             <button className="btn primary" onClick={scaricaPdf} disabled={scarico}>
               {scarico ? "Preparo il PDF…" : "📄 Scarica il PDF"}
             </button>
+            <button className="btn" onClick={archiviaSuDropbox} disabled={archivio?.stato === "lavoro"}>
+              {archivio?.stato === "lavoro" ? "Archivio…" : "🗂️ Archivia nella cartella del cliente"}
+            </button>
           </div>
+          {archivio?.stato === "fatto" ? (
+            <div className="empty">
+              ✅ Archiviato in <b>{archivio.percorso}</b>
+              {archivio.link ? <> · <a href={archivio.link} target="_blank" rel="noopener">apri su Dropbox</a></> : null}
+            </div>
+          ) : null}
+          {archivio?.stato === "errore" ? <div className="empty">⚠️ {archivio.motivo}</div> : null}
         </>
       )}
     </div>
