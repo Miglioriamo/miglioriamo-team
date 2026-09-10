@@ -196,6 +196,8 @@ export default function Copy({ clientName }) {
             {c.registro ? (
               <div className="reg">
                 <span className={"regTag reg-" + c.registro}>{ETICHETTA[c.registro] || c.registro}</span>
+                {c.istruzioni ? <span className="regTag reg-parlato" title={c.istruzioni}>📋 brief del PM</span> : null}
+                {c.parlato ? <span className="regTag reg-parlato" title={c.parlato}>🗣️ dal parlato</span> : null}
                 {c.motivo ? <span className="regMot">{c.motivo}</span> : null}
               </div>
             ) : null}

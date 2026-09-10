@@ -207,6 +207,7 @@ button{font-family:inherit;cursor:pointer}
 .reg-specifico{color:var(--good);background:rgba(102,193,133,.14);border-color:rgba(102,193,133,.4)}
 .reg-categoria{color:var(--accent-ink);background:var(--accent-soft);border-color:var(--accent)}
 .reg-generico{color:var(--faint);background:var(--surface-2);border-color:var(--border)}
+.reg-parlato{color:var(--accent-ink);background:var(--accent-soft);border-color:var(--accent);cursor:help}
 .regMot{font-size:11.5px;color:var(--faint);line-height:1.45}
 .riep{margin:14px 22px 0;padding:13px 16px;background:var(--surface-2);border:1px solid var(--border);border-radius:12px}
 .riepConta{display:flex;gap:7px;flex-wrap:wrap}
