@@ -40,7 +40,9 @@ export async function POST(request) {
       fascicolo,
       dati,
       repertorio: elencoPerPrompt(),
-      quanti: Number(d.quanti) || 4,
+      // sei copioni: con quattro il mese resta corto, e il repertorio
+      // dei format ne ha in abbondanza per non ripetersi
+      quanti: Number(d.quanti) || 6,
     });
 
     return Response.json({

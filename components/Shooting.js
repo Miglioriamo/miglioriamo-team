@@ -126,7 +126,7 @@ export default function Shooting({ clientName }) {
           </div>
           {errore ? <div className="empty">⚠️ {errore}</div> : null}
           <div className="modBtns">
-            <button className="btn primary" onClick={genera}>Scrivi i copioni →</button>
+            <button className="btn primary" onClick={genera}>Scrivi i 6 copioni →</button>
           </div>
         </>
       ) : fase === "lavoro" ? (
