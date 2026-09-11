@@ -59,6 +59,20 @@ async function logoPng(clientPath) {
   } catch { return null; }
 }
 
+/** Gli stessi copioni in testo semplice, per la memoria del cliente. */
+function testoCopioni(cliente, periodo, obiettivo, copioni) {
+  const righe = [`# Copioni — ${cliente}`, "", periodo ? `Periodo: ${pulisci(periodo)}` : "", 
+    obiettivo ? `Obiettivo: ${pulisci(obiettivo)}` : "", ""];
+  copioni.forEach((c, i) => {
+    righe.push(`## ${i + 1}. ${pulisci(c.titolo)}${c.formatNome ? ` (${pulisci(c.formatNome)})` : ""}`, "");
+    if (pulisci(c.gancio)) righe.push(`**Gancio:** ${pulisci(c.gancio)}`, "");
+    if (pulisci(c.script)) righe.push(pulisci(c.script), "");
+    if (pulisci(c.riprese)) righe.push(`_Riprese: ${pulisci(c.riprese)}_`, "");
+    if (pulisci(c.cta)) righe.push(`**CTA:** ${pulisci(c.cta)}`, "");
+  });
+  return righe.filter((r) => r !== undefined).join("\n");
+}
+
 export async function POST(request) {
   let d = {};
   try { d = await request.json(); } catch {}
@@ -179,10 +193,22 @@ export async function POST(request) {
     if (!scritturaAttiva())
       return Response.json({ ok: false, motivo: "L'archiviazione non è attiva su questo indirizzo." }, { status: 503 });
     try {
+      const mese = meseDaPeriodo(periodo);
       const salvato = await salvaOutput({
         cliente: d.cliente, tipo: "shooting", nomeFile,
-        contenuto: Buffer.from(bytes), mese: meseDaPeriodo(periodo),
+        contenuto: Buffer.from(bytes), mese,
       });
+      // Accanto al PDF si salva anche il testo: il PDF è per le persone, il
+      // testo è per l'app, che dal PDF non saprebbe rileggere niente. Servirà
+      // al Copy, perché i video vengono girati proprio da questi copioni.
+      try {
+        await salvaOutput({
+          cliente: d.cliente, tipo: "shooting",
+          nomeFile: nomeFile.replace(/\.pdf$/i, "") + ".md",
+          contenuto: testoCopioni(cliente, periodo, d.obiettivo, copioni),
+          mese,
+        });
+      } catch {}
       return Response.json({ ok: true, percorso: salvato.percorso, nome: salvato.nome });
     } catch (e) {
       return Response.json({ ok: false, motivo: String(e && e.message ? e.message : e) }, { status: 502 });

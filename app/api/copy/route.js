@@ -5,14 +5,15 @@ import {
   resolveTarget,
   friendlyError,
 } from "../../../lib/dropbox";
-import { extractFrames } from "../../../lib/video";
+import { extractFrames, extractAudio } from "../../../lib/video";
+import { trascrivi, trascrizioneAttiva } from "../../../lib/trascrizione";
 import { scriviDidascalia, hasKey } from "../../../lib/anthropic";
-import { leggiFascicolo } from "../../../lib/fascicolo";
-import { nomeUtile, cartellaUtile } from "../../../lib/nomi";
+import { leggiFascicolo, copioniArchiviati } from "../../../lib/fascicolo";
+import { nomeUtile, cartellaUtile, istruzioneCopy, giaPubblicato } from "../../../lib/nomi";
 import { salvaOutput, aggiornaIndice, leggiIndice, scritturaAttiva } from "../../../lib/scrittura";
 
 export const dynamic = "force-dynamic";
-export const maxDuration = 60;
+export const maxDuration = 120;
 
 // Foto "normali" e RAW di macchina fotografica: entrambi si leggono con
 // l'anteprima JPEG di Dropbox, perché Claude non sa aprire un file RAW.
@@ -21,9 +22,10 @@ const RAW = /\.(arw|cr2|cr3|nef|dng|raf|orf|rw2|srw|pef)$/i;
 const VIDEO = /\.(mp4|mov|m4v|avi|mkv|webm)$/i;
 
 const MAX_FOTO = 4;
-const MAX_VIDEO = 3; // più lenti delle foto: ffmpeg deve cercare dentro il file
+const MAX_VIDEO = 2; // con la trascrizione ogni video costa di più: meglio pochi per giro
 const MAX_SUBFOLDERS = 24; // quante sottocartelle ispezionare quando la cartella è "vuota"
 const FRAMES = 3;
+const MAX_MB_TRASCRIZIONE = 120; // oltre, l'estrazione dell'audio diventa lenta
 
 /** Una foto (o un RAW): l'anteprima di Dropbox è già quello che serve a Claude. */
 async function fromPhoto(full) {
@@ -38,13 +40,26 @@ async function fromPhoto(full) {
  * Se ffmpeg non ce la fa si ripiega sull'anteprima di Dropbox: un fotogramma
  * solo, meno preciso, ma meglio che restare senza didascalia.
  */
-async function fromVideo(full) {
+async function fromVideo(full, dimensione = 0) {
   const link = await getTemporaryLink(full);
   if (link) {
     try {
       const { frames, seconds } = await extractFrames(link, FRAMES);
-      if (frames.length)
-        return { images: frames, preview: frames[0], kind: "video", seconds, shots: frames.length };
+      if (frames.length) {
+        // Il parlato vale più dei fotogrammi: i video dei clienti sono copioni
+        // recitati, e quello che conta è cosa viene detto.
+        let parlato = null;
+        const troppoGrosso = dimensione > MAX_MB_TRASCRIZIONE * 1024 * 1024;
+        if (trascrizioneAttiva() && !troppoGrosso) {
+          // finestre strette: il giro intero deve stare nel tempo della funzione
+          const audio = await extractAudio(link, { maxSecondi: 300, timeoutMs: 25000 });
+          if (audio) {
+            const t = await trascrivi(audio);
+            if (t) parlato = t.testo;
+          }
+        }
+        return { images: frames, preview: frames[0], kind: "video", seconds, shots: frames.length, parlato };
+      }
     } catch {}
   }
   const thumb = await getThumbnailBase64(full);
@@ -55,10 +70,19 @@ async function fromVideo(full) {
 /** Guarda un contenuto e ne scrive la didascalia; gli errori restano nella scheda. */
 async function scriviCaption(full, file, estrai, clientName, fascicolo, indiziBase) {
   try {
-    const { images, preview, kind, seconds, shots } = await estrai(full);
+    const { images, preview, kind, seconds, shots, parlato } = await estrai(full, file.size);
     // Il nome del file è informazione gratuita, ma solo se dice qualcosa:
     // "IMG_4471" non aiuta, "Banana split con panna" sì.
-    const indizi = { ...indiziBase, nomeFile: nomeUtile(file.name) };
+    // Il nome del file può contenere il brief scritto dal project manager
+    // ("Nel copy scrivere…"): si separa l'istruzione da ciò che descrive il
+    // contenuto, e si tengono tutt'e due.
+    const b = istruzioneCopy(file.name);
+    const indizi = {
+      ...indiziBase,
+      nomeFile: nomeUtile(b.resto || file.name),
+      istruzioni: [b.istruzione, indiziBase.istruzioni].filter(Boolean).join(" · ") || null,
+      parlato: parlato || null,
+    };
     const { caption, registro, motivo, grezzo, fine } = await scriviDidascalia({
       clientName, fascicolo, images, kind, indizi,
     });
@@ -66,6 +90,8 @@ async function scriviCaption(full, file, estrai, clientName, fascicolo, indiziBa
       name: file.name, kind, seconds, shots,
       preview: `data:image/jpeg;base64,${preview}`,
       caption, registro, motivo, grezzo, fine,
+      istruzioni: indizi.istruzioni || undefined,
+      parlato: parlato ? parlato.slice(0, 600) : undefined,
     };
   } catch (e) {
     return {
@@ -139,7 +165,20 @@ export async function POST(request) {
   const dossier = Boolean(fascicolo.dossier);
   // Il commento dell'operatore vale per tutto il gruppo: trenta secondi di
   // appunti coprono venti contenuti.
-  const indiziBase = { commento: (commento || "").trim() || null, nomeCartella: cartellaUtile(folder) };
+  // Anche la cartella può portare il brief: nei caroselli l'istruzione vale
+  // per tutte le foto che contiene.
+  const briefCartella = istruzioneCopy(folder.split("/").filter(Boolean).pop() || "");
+  // I copioni che abbiamo scritto noi: i video di questo cliente sono girati
+  // da lì, quindi sappiamo già cosa viene detto senza trascrivere nulla.
+  let copioni = [];
+  try { copioni = await copioniArchiviati(name, 2); } catch {}
+
+  const indiziBase = {
+    copioni: copioni.length ? copioni.map((c) => c.testo).join("\n\n---\n\n") : null,
+    commento: (commento || "").trim() || null,
+    nomeCartella: cartellaUtile(briefCartella.resto || folder),
+    istruzioni: briefCartella.istruzione,
+  };
 
   // Un singolo file (tipico: il link di un video preso da Dropbox).
   if (target.kind === "file") {
@@ -204,6 +243,13 @@ export async function POST(request) {
   // giro lavora solo il materiale nuovo invece di rifare sempre i primi quattro.
   let saltati = 0;
   if (!body.rifaiTutti) {
+    // I project manager segnano da soli cosa è uscito, scrivendo "Pubb." o
+    // "Pubblicato." davanti al nome: quel copy esiste già.
+    const primaDiTutto = foto.length + video.length;
+    foto = foto.filter((f) => !giaPubblicato(f.name));
+    video = video.filter((v) => !giaPubblicato(v.name));
+    saltati += primaDiTutto - (foto.length + video.length);
+
     try {
       const indice = await leggiIndice(name);
       const fatti = new Set(
@@ -266,6 +312,7 @@ export async function POST(request) {
       folder,
       dossier,
       saltati,
+      copioniUsati: copioni.length || undefined,
       fascicolo: stato(fascicolo),
       next: restano.length ? next : undefined,
       restano: restano.length ? restano.join(" e ") : undefined,
