@@ -13,7 +13,7 @@ import { nomeUtile, cartellaUtile, istruzioneCopy, giaPubblicato } from "../../.
 import { salvaOutput, aggiornaIndice, leggiIndice, scritturaAttiva } from "../../../lib/scrittura";
 
 export const dynamic = "force-dynamic";
-export const maxDuration = 120;
+export const maxDuration = 180;
 
 // Foto "normali" e RAW di macchina fotografica: entrambi si leggono con
 // l'anteprima JPEG di Dropbox, perché Claude non sa aprire un file RAW.
@@ -24,8 +24,13 @@ const VIDEO = /\.(mp4|mov|m4v|avi|mkv|webm)$/i;
 const MAX_FOTO = 4;
 const MAX_VIDEO = 2; // con la trascrizione ogni video costa di più: meglio pochi per giro
 const MAX_SUBFOLDERS = 24; // quante sottocartelle ispezionare quando la cartella è "vuota"
-const FRAMES = 3;
-const MAX_MB_TRASCRIZIONE = 120; // oltre, l'estrazione dell'audio diventa lenta
+// Quanto guardare un video dipende da cosa c'è dentro:
+// se qualcuno PARLA, quel video ha un messaggio preciso da rispettare e va
+// guardato bene; se è muto è materiale d'atmosfera e la didascalia resta
+// generica, quindi tre fotogrammi bastano e non si spende di più.
+const FRAMES_MUTO = 3;
+const FRAMES_PARLATO = 8;
+const MAX_MB_TRASCRIZIONE = 400; // sotto questa soglia si prova sempre a sentire il parlato
 
 /** Una foto (o un RAW): l'anteprima di Dropbox è già quello che serve a Claude. */
 async function fromPhoto(full) {
@@ -42,29 +47,32 @@ async function fromPhoto(full) {
  */
 async function fromVideo(full, dimensione = 0) {
   const link = await getTemporaryLink(full);
+  let parlato = null;
+
   if (link) {
     try {
-      const { frames, seconds } = await extractFrames(link, FRAMES);
-      if (frames.length) {
-        // Il parlato vale più dei fotogrammi: i video dei clienti sono copioni
-        // recitati, e quello che conta è cosa viene detto.
-        let parlato = null;
-        const troppoGrosso = dimensione > MAX_MB_TRASCRIZIONE * 1024 * 1024;
-        if (trascrizioneAttiva() && !troppoGrosso) {
-          // finestre strette: il giro intero deve stare nel tempo della funzione
-          const audio = await extractAudio(link, { maxSecondi: 300, timeoutMs: 25000 });
-          if (audio) {
-            const t = await trascrivi(audio);
-            if (t) parlato = t.testo;
-          }
+      // Prima si ascolta, poi si guarda: è il parlato a dire quanto vale la
+      // pena guardare questo video.
+      const troppoGrosso = dimensione > MAX_MB_TRASCRIZIONE * 1024 * 1024;
+      if (trascrizioneAttiva() && !troppoGrosso) {
+        const audio = await extractAudio(link, { maxSecondi: 600, timeoutMs: 35000 });
+        if (audio) {
+          const t = await trascrivi(audio);
+          if (t) parlato = t.testo;
         }
-        return { images: frames, preview: frames[0], kind: "video", seconds, shots: frames.length, parlato };
       }
+
+      const { frames, seconds } = await extractFrames(link, parlato ? FRAMES_PARLATO : FRAMES_MUTO);
+      if (frames.length)
+        return { images: frames, preview: frames[0], kind: "video", seconds, shots: frames.length, parlato };
     } catch {}
   }
+
+  // ffmpeg non ce l'ha fatta: resta l'anteprima di Dropbox, un fotogramma solo.
+  // Il parlato, se lo abbiamo già sentito, non si butta via.
   const thumb = await getThumbnailBase64(full);
   if (!thumb) throw new Error("Non si riesce a leggere questo video.");
-  return { images: [thumb], preview: thumb, kind: "video", shots: 1 };
+  return { images: [thumb], preview: thumb, kind: "video", shots: 1, parlato };
 }
 
 /** Guarda un contenuto e ne scrive la didascalia; gli errori restano nella scheda. */
