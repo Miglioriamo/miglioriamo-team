@@ -31,7 +31,10 @@ export async function GET(request) {
       genChildren = (await listFolder(genPath)) || [];
       const md = genChildren.find((e) => e[".tag"] === "file" && /\.md$/i.test(e.name));
       hasDossier = Boolean(md);
-      if (md) {
+      // Il fascicolo nuovo tiene le CTA in un file a sé (cta.md): se c'è,
+      // il semaforo è verde senza bisogno di cercarle dentro il dossier.
+      hasCta = genChildren.some((e) => e[".tag"] === "file" && /^cta\.md$/i.test(e.name));
+      if (md && !hasCta) {
         try {
           const text = await downloadText(`${genPath}/${md.name}`);
           hasCta = /call to action|\bcta\b/i.test(text || "");
